@@ -158,3 +158,15 @@ pre.code{background:#2b2b2b;color:#f2f2f2;padding:14px;border-radius:12px;overfl
 .hero p{margin:0;opacity:.95}
 .empty{text-align:center;color:var(--muted);padding:40px 10px}
 @media (max-width:480px){.node-wrap.l{transform:translateX(-44px)}.node-wrap.r{transform:translateX(44px)}.stats{gap:10px;font-size:14px}}
+
+/* playground */
+.runwrap{margin:12px 0}
+.runwrap pre.code{margin-bottom:0;border-radius:12px 12px 0 0}
+.runbar{display:flex;gap:10px;align-items:center;background:#1f1f1f;padding:8px 12px;border-radius:0 0 12px 12px}
+.runbar .run{border:0;border-radius:10px;padding:6px 14px;font-weight:800;color:#fff;background:var(--green);box-shadow:0 3px 0 var(--green-d)}
+.runbar .run:disabled{background:var(--gray-d);box-shadow:none}
+.runbar .pg{margin-left:auto;color:#9cdcfe;font-size:13px;font-weight:700;text-decoration:none}
+.runbar .pg:hover{text-decoration:underline}
+pre.out{margin:0;background:#0d1117;color:#7ee787;border:1px solid #333;border-top:0;border-radius:0 0 12px 12px;padding:12px 14px;font-size:13px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow:auto}
+pre.out.err{color:#ffa198}
+.runwrap:has(.out:not([hidden])) .runbar{border-radius:0}

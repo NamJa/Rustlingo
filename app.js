@@ -50,20 +50,44 @@ const esc = s => String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;'
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; } return a; };
 function hl(code) {
   // tiny Rust highlighter: comments, strings, macros, keywords, numbers
-  let out = esc(code);
+  let out = String(code).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); // no quote entities: digit regex below would split them
   const KW = /\b(fn|let|mut|const|static|if|else|match|loop|while|for|in|return|break|continue|struct|enum|impl|trait|pub|use|mod|crate|self|Self|super|as|where|type|dyn|move|ref|unsafe|async|await|extern|true|false|Some|None|Ok|Err|String|Vec|Option|Result|Box|Rc|Arc|RefCell|i32|u32|i64|u64|usize|isize|u8|f64|f32|bool|char|str)\b/g;
-  out = out.replace(/(\/\/[^\n]*)|("(?:[^"\\]|\\.)*")|(\b[a-zA-Z_]\w*!)|(\b\d[\d_]*(?:\.\d+)?\b)|(&#39;[a-z_]+\b)/g,
+  out = out.replace(/(\/\/[^\n]*)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)')|(\b[a-zA-Z_]\w*!)|(\b\d[\d_]*(?:\.\d+)?\b)|('[a-z_]+\b)/g,
     (m, c, s, mac, n, lt) => c ? `<span class="c">${c}</span>` : s ? `<span class="s">${s}</span>` : mac ? `<span class="m">${mac}</span>` : n ? `<span class="n">${n}</span>` : `<span class="k">${lt}</span>`);
   // keywords outside spans (good enough for teaching snippets)
   out = out.split(/(<span[^>]*>.*?<\/span>)/gs).map(p => p.startsWith('<span') ? p : p.replace(KW, '<span class="k">$1</span>')).join('');
   return out;
 }
 const codeBlock = c => `<pre class="code">${hl(c)}</pre>`;
+// ---------- Rust Playground (play.rust-lang.org) ----------
+const PG = 'https://play.rust-lang.org';
+const snippets = [];
+const pgSource = code => /\bfn\s+main\s*\(/.test(code) ? code : `#![allow(unused)]\nfn main() {\n${code}\n}`;
+const pgLink = code => `${PG}/?version=stable&edition=2024&code=${encodeURIComponent(pgSource(code))}`;
+function runnable(code) {
+  const i = snippets.push(code) - 1;
+  return `<div class="runwrap">${codeBlock(code)}<div class="runbar"><button class="run" data-i="${i}">▶ 실행</button><a class="pg" href="${pgLink(code)}" target="_blank" rel="noopener">Playground에서 열기 ↗</a></div><pre class="out" id="out-${i}" hidden></pre></div>`;
+}
+async function runSnippet(i) {
+  const out = $('#out-' + i, L.el), btn = L.el.querySelector(`.run[data-i="${i}"]`);
+  out.hidden = false; out.textContent = '컴파일 중… (play.rust-lang.org)'; out.className = 'out'; btn.disabled = true;
+  try {
+    const r = await fetch(PG + '/evaluate.json', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version: 'stable', optimize: '0', edition: '2024', code: pgSource(snippets[i]) }) });
+    const j = await r.json();
+    if (j.error) throw new Error(j.error);
+    out.textContent = j.result?.trim() || '(출력 없음)';
+    if (/^error(\[E\d+\])?:/m.test(j.result)) out.classList.add('err');
+  } catch (e) {
+    out.classList.add('err'); out.textContent = `실행 실패: ${e.message}\nPlayground에서 열기 링크로 직접 실행해보세요.`;
+  }
+  btn.disabled = false;
+}
 function md(text) {
   // minimal markdown: ```code```, paragraphs, **bold**, `code`, "- " lists
-  const parts = text.split(/```(?:rust|toml|text|bash|console|sh)?\n?([\s\S]*?)```/g);
+  const parts = text.split(/```(rust|toml|text|bash|console|sh)?\n?([\s\S]*?)```/g);
   return parts.map((p, i) => {
-    if (i % 2) return codeBlock(p.replace(/\n$/, ''));
+    if (i % 3 === 1) return ''; // language tag
+    if (i % 3 === 2) { const c = p.replace(/\n$/, ''); return parts[i - 1] && parts[i - 1] !== 'rust' ? codeBlock(c) : runnable(c); }
     return p.split(/\n\s*\n/).filter(s => s.trim()).map(par => {
       const lines = par.trim().split('\n');
       const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -212,6 +236,7 @@ function showStudy() {
   frame(`<div class="study"><small class="muted">${esc(l.chapter.title)} · 책 p.${esc(l.chapter.pages || '')}</small><h2>${esc(l.title)}</h2><div class="md">${md(l.summary || '')}</div>${l.keyPoints?.length ? `<div class="kp"><b>핵심 정리</b><ul>${l.keyPoints.map(k => `<li>${inl(k)}</li>`).join('')}</ul></div>` : ''}</div>`,
     `<span class="muted">문제 ${l.exercises.length}개</span><button class="btn" id="go">문제 풀기 →</button>`, 0);
   $('#go', L.el).onclick = nextExercise;
+  L.el.querySelectorAll('.run').forEach(b => b.onclick = () => runSnippet(+b.dataset.i));
 }
 
 function nextExercise() {
