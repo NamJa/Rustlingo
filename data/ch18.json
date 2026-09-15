@@ -1,0 +1,448 @@
+{
+  "id": "ch18",
+  "number": 18,
+  "title": "객체지향 프로그래밍 기능",
+  "titleEn": "Object-Oriented Programming Features",
+  "emoji": "🎭",
+  "pages": "508-534",
+  "intro": "러스트가 객체지향 언어인지 따져보면서 객체, 캡슐화, 상속이라는 세 가지 성질을 하나씩 점검합니다. 상속이 없는 자리를 트레이트 기본 메서드와 트레이트 객체가 어떻게 메우는지, 그리고 정적 디스패치와 동적 디스패치의 값이 무엇인지 살펴봅니다. 마지막으로 고전적인 상태 패턴을 트레이트 객체로 구현해 보고, 같은 문제를 타입으로 다시 설계해 두 방식의 장단점을 비교합니다.",
+  "lessons": [
+    {
+      "id": "ch18-1",
+      "title": "객체, 캡슐화, 그리고 상속의 부재",
+      "summary": "어떤 언어를 객체지향이라 부를 수 있는지에 대한 합의된 기준은 없습니다. 다만 흔히 거론되는 성질이 셋 있습니다. **객체**, **캡슐화**, **상속**입니다. 러스트가 이 셋을 각각 어떻게 다루는지 보면 러스트의 성격이 선명해집니다.\n\n먼저 객체입니다. 디자인 패턴 책에서 말하는 객체는 \"데이터와 그 데이터를 다루는 절차를 한 덩어리로 묶은 것\"입니다. 이 기준이라면 러스트의 `struct`와 `enum`이 데이터를, `impl` 블록이 메서드를 담당하므로 러스트에도 객체가 있는 셈입니다. 이름만 객체라 부르지 않을 뿐입니다.\n\n다음은 캡슐화입니다. 바깥 코드가 내부 구현에 손대지 못하게 막고 공개 API로만 상호작용하게 하는 성질이죠. 러스트에서는 `pub` 키워드가 이 역할을 합니다. 아무 표시도 하지 않으면 기본이 비공개이므로, 공개하고 싶은 것만 골라 `pub`을 붙이면 됩니다.\n\n```rust\npub struct TempLog {\n    samples: Vec<f64>,\n    max: f64,\n}\n\nimpl TempLog {\n    pub fn new() -> TempLog {\n        TempLog { samples: Vec::new(), max: f64::MIN }\n    }\n\n    pub fn record(&mut self, t: f64) {\n        self.samples.push(t);\n        self.refresh_max();\n    }\n\n    pub fn max(&self) -> f64 {\n        self.max\n    }\n\n    fn refresh_max(&mut self) {\n        self.max = self.samples.iter().copied().fold(f64::MIN, f64::max);\n    }\n}\n```\n\n타입 자체는 `pub`이지만 두 필드는 비공개입니다. 덕분에 값이 들어올 때마다 `refresh_max`가 반드시 함께 불리도록 강제할 수 있습니다. 만약 `samples`를 공개했다면 바깥에서 벡터에 직접 값을 밀어 넣어 `max`가 사실과 어긋나게 만들 수 있었겠죠. 게다가 내부 자료구조를 나중에 다른 것으로 갈아끼워도 `record`, `max`의 시그니처만 그대로면 사용자 코드는 한 줄도 고칠 필요가 없습니다.\n\n마지막은 상속입니다. 여기서는 답이 분명합니다. 러스트에는 다른 구조체의 필드와 메서드 구현을 물려받는 문법이 아예 없습니다. 매크로를 동원하지 않는 한 방법이 없습니다.\n\n상속을 찾게 되는 이유는 보통 두 가지인데, 러스트는 각각에 다른 답을 줍니다. 첫째 이유인 **코드 재사용**은 트레이트의 기본 메서드 구현으로 해결합니다.\n\n```rust\ntrait Greet {\n    fn name(&self) -> String;\n\n    fn hello(&self) -> String {\n        format!(\"안녕하세요, {}입니다\", self.name())\n    }\n}\n```\n\n이 트레이트를 구현하는 타입은 `name`만 써 주면 `hello`를 공짜로 얻습니다. 부모 클래스의 메서드를 물려받는 것과 비슷하고, 원하면 구현할 때 `hello`를 다시 정의해 덮어쓸 수도 있습니다.\n\n둘째 이유는 **타입 시스템**, 즉 자식 타입을 부모 타입 자리에 쓸 수 있게 하는 다형성입니다. 러스트는 상속 대신 제네릭으로 여러 타입을 추상화하고 트레이트 바운드로 그 타입이 갖춰야 할 조건을 건다는 접근을 택했습니다. 이를 한정된 매개변수 다형성이라 부릅니다. 런타임에 여러 타입을 섞어야 할 때는 다음 레슨에서 볼 트레이트 객체를 씁니다. 상속은 필요 이상으로 많은 것을 공유하게 만들고, 자식에게 어울리지 않는 메서드까지 딸려 오며, 단일 상속만 허용하는 언어에서는 설계가 더 굳어집니다. 러스트는 그 대가를 치르지 않는 쪽을 골랐습니다.",
+      "keyPoints": [
+        "GoF의 정의(데이터 + 그 데이터를 다루는 절차)를 기준으로 보면 struct/enum과 impl 블록이 객체 역할을 한다.",
+        "러스트의 모든 항목은 기본이 비공개이고, pub으로 공개 범위를 골라 캡슐화를 만든다.",
+        "필드를 비공개로 두면 불변식을 강제할 수 있고 내부 자료구조를 바꿔도 사용자 코드가 깨지지 않는다.",
+        "러스트에는 구조체 상속이 없으며, 코드 재사용은 트레이트의 기본 메서드 구현으로 대신한다.",
+        "다형성은 제네릭 + 트레이트 바운드(컴파일 타임) 또는 트레이트 객체(런타임)로 얻는다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "\"데이터와 그 데이터를 다루는 절차를 묶은 것\"이라는 정의에서, 러스트에서 객체 역할을 하는 것은 무엇인가요?",
+          "options": [
+            "struct 또는 enum과 그에 딸린 impl 블록",
+            "trait 정의 그 자체",
+            "모듈(mod) 선언",
+            "매크로 정의"
+          ],
+          "answer": 0,
+          "explain": "데이터는 struct/enum의 필드가, 절차는 impl 블록의 메서드가 담당하므로 둘이 합쳐져 객체와 같은 역할을 합니다."
+        },
+        {
+          "type": "fill",
+          "q": "타입은 외부에 공개하되 필드는 감추고 싶습니다. 빈칸에 들어갈 것은?",
+          "code": "___ struct Config {\n    retries: u32,\n}",
+          "options": [
+            "pub",
+            "private",
+            "static",
+            "extern"
+          ],
+          "answer": 0,
+          "explain": "pub은 구조체 자체만 공개하며, 필드는 따로 pub을 붙이지 않는 한 비공개로 남습니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "mod store {\n    pub struct Counter {\n        count: u32,\n    }\n\n    impl Counter {\n        pub fn new() -> Counter {\n            Counter { count: 0 }\n        }\n\n        pub fn get(&self) -> u32 {\n            self.count\n        }\n    }\n}\n\nfn main() {\n    let mut c = store::Counter::new();\n    c.count += 1;\n    println!(\"{}\", c.get());\n}",
+          "options": [
+            "0",
+            "1",
+            "컴파일 에러",
+            "런타임 패닉"
+          ],
+          "answer": 2,
+          "explain": "count 필드는 비공개라 store 모듈 바깥에서는 접근할 수 없어 컴파일 에러가 납니다."
+        },
+        {
+          "type": "tf",
+          "q": "러스트는 어떤 구조체가 다른 구조체의 필드와 메서드 구현을 물려받는 상속 문법을 제공한다.",
+          "answer": false,
+          "explain": "러스트에는 구조체 상속이 없습니다. 코드 공유는 트레이트로, 다형성은 제네릭이나 트레이트 객체로 해결합니다."
+        },
+        {
+          "type": "mc",
+          "q": "상속을 쓰는 이유 중 \"코드 재사용\"에 해당하는 러스트의 대안은?",
+          "options": [
+            "라이프타임 표기",
+            "모듈 중첩",
+            "Box<T>로 감싸기",
+            "트레이트의 기본 메서드 구현"
+          ],
+          "answer": 3,
+          "explain": "트레이트에 기본 구현을 써 두면 그 트레이트를 구현하는 모든 타입이 그 메서드를 그대로 얻고, 필요하면 재정의할 수 있습니다."
+        },
+        {
+          "type": "match",
+          "q": "개념과 설명을 연결하세요",
+          "pairs": [
+            [
+              "캡슐화",
+              "구현 세부사항을 감추고 공개 API로만 다루게 하는 것"
+            ],
+            [
+              "pub",
+              "항목을 외부에 공개하는 키워드"
+            ],
+            [
+              "다형성",
+              "여러 타입의 값을 같은 코드로 다룰 수 있게 하는 것"
+            ],
+            [
+              "트레이트 기본 메서드",
+              "구현 타입이 별도 코드 없이 얻는 동작"
+            ]
+          ],
+          "explain": "러스트는 pub으로 캡슐화를, 트레이트와 제네릭으로 코드 공유와 다형성을 만듭니다."
+        },
+        {
+          "type": "order",
+          "q": "기본 구현을 가진 트레이트가 되도록 올바른 순서로 배열하세요",
+          "items": [
+            "trait Greet {",
+            "    fn name(&self) -> String;",
+            "    fn hello(&self) -> String { format!(\"hi {}\", self.name()) }",
+            "}"
+          ],
+          "explain": "필수 메서드 name은 시그니처만 선언하고, hello는 name을 이용한 기본 구현을 가집니다."
+        }
+      ]
+    },
+    {
+      "id": "ch18-2",
+      "title": "트레이트 객체와 동적 디스패치",
+      "summary": "벡터는 한 가지 타입만 담을 수 있습니다. 담을 타입의 종류가 컴파일 시점에 정해져 있다면 열거형으로 감싸면 그만입니다. 하지만 라이브러리를 만드는 입장에서는 사용자가 나중에 어떤 타입을 추가할지 알 수 없습니다. 그럴 때 필요한 것이 **트레이트 객체**입니다.\n\n트레이트 객체는 \"이 트레이트를 구현한 어떤 타입\"을 가리키는 값입니다. 만드는 법은 포인터(`&`나 `Box<T>` 같은) 뒤에 `dyn` 키워드와 트레이트 이름을 적는 것입니다. 이 값은 실제 데이터를 가리키는 포인터와, 런타임에 메서드를 찾기 위한 표를 함께 들고 다닙니다.\n\n```rust\npub trait Render {\n    fn render(&self) -> String;\n}\n\npub struct Canvas {\n    pub items: Vec<Box<dyn Render>>,\n}\n\nimpl Canvas {\n    pub fn draw_all(&self) {\n        for item in &self.items {\n            println!(\"{}\", item.render());\n        }\n    }\n}\n\npub struct Label {\n    pub text: String,\n}\n\nimpl Render for Label {\n    fn render(&self) -> String {\n        format!(\"[{}]\", self.text)\n    }\n}\n```\n\n`draw_all`은 각 항목의 구체 타입이 무엇인지 전혀 묻지 않습니다. `render`를 부를 수 있다는 사실만 압니다. 동적 타입 언어의 덕 타이핑과 비슷해 보이지만 결정적인 차이가 있습니다. 러스트는 컴파일 시점에 검사하므로, `Render`를 구현하지 않은 타입을 `items`에 넣으려 하면 프로그램이 돌기 전에 에러가 납니다. 런타임에 \"이 값에 그 메서드가 있나?\"를 확인할 일이 없습니다.\n\n제네릭과 트레이트 바운드를 쓰는 아래 정의와 비교해 보면 차이가 분명합니다.\n\n```rust\npub struct Canvas<T: Render> {\n    pub items: Vec<T>,\n}\n```\n\n이 `Canvas`의 한 인스턴스는 전부 `Label`이거나 전부 `Button`이어야 합니다. 제네릭 타입 매개변수는 한 번에 하나의 구체 타입으로만 치환되기 때문입니다. 반대로 `Vec<Box<dyn Render>>`에는 `Box<Label>`과 `Box<Button>`을 나란히 담을 수 있습니다.\n\n그러면 무엇을 골라야 할까요? 컬렉션이 동종(같은 타입만)이라면 제네릭 쪽이 낫습니다. 컴파일러가 단형화를 거쳐 구체 타입별 코드를 펼쳐 놓기 때문에 호출 대상이 컴파일 타임에 확정되는 **정적 디스패치**가 됩니다. 반면 트레이트 객체는 컴파일러가 어떤 타입이 올지 알 수 없으므로 **동적 디스패치**를 씁니다. 실행 중에 포인터를 따라가 호출할 함수를 찾아야 하니 약간의 비용이 들고, 무엇보다 인라이닝 같은 최적화를 막습니다. 또 모든 트레이트를 `dyn`으로 쓸 수 있는 것도 아니어서, dyn 호환성이라 불리는 규칙을 만족해야 합니다.\n\n정리하면 트레이트 객체가 주는 것은 유연성이고 지불하는 것은 약간의 런타임 비용입니다. 한 가지 더, 트레이트 객체에는 데이터를 덧붙일 수 없습니다. 다른 언어의 객체처럼 만능이 아니라 오직 공통 동작을 추상화하기 위한 도구입니다.",
+      "keyPoints": [
+        "트레이트 객체는 포인터 + dyn + 트레이트 이름으로 만들며, 값과 메서드 조회표를 함께 가리킨다.",
+        "Vec<Box<dyn Trait>>는 서로 다른 구체 타입을 한 컬렉션에 섞을 수 있지만, 제네릭 Vec<T>는 한 종류만 담는다.",
+        "제네릭은 단형화되어 정적 디스패치가 되고, 트레이트 객체는 동적 디스패치가 된다.",
+        "동적 디스패치는 런타임 조회 비용이 있고 인라이닝 등 최적화를 막는다.",
+        "트레이트를 구현하지 않은 타입은 애초에 트레이트 객체로 만들 수 없어 컴파일 타임에 걸러진다."
+      ],
+      "exercises": [
+        {
+          "type": "fill",
+          "q": "여러 구체 타입을 담을 수 있는 벡터를 선언하려면 빈칸에 무엇이 들어가야 할까요?",
+          "code": "let items: Vec<Box<___ Render>> = Vec::new();",
+          "options": [
+            "dyn",
+            "impl",
+            "mut",
+            "ref"
+          ],
+          "answer": 0,
+          "explain": "트레이트 객체는 포인터 뒤에 dyn과 트레이트 이름을 적어 만듭니다. impl Trait은 트레이트 객체가 아니라 하나의 구체 타입을 감추는 표기입니다."
+        },
+        {
+          "type": "mc",
+          "q": "`Vec<Box<dyn Render>>`와 `Vec<T> where T: Render`의 가장 큰 차이는?",
+          "options": [
+            "전자는 Render를 구현하지 않은 타입도 담을 수 있다",
+            "후자는 힙을 전혀 쓰지 않는다",
+            "전자는 한 벡터에 서로 다른 구체 타입을 섞어 담을 수 있다",
+            "후자는 런타임에만 타입을 검사한다"
+          ],
+          "answer": 2,
+          "explain": "제네릭 매개변수는 한 인스턴스에서 하나의 구체 타입으로 고정되지만, 트레이트 객체는 요소마다 다른 구체 타입이 올 수 있습니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는? (Render 트레이트와 Canvas는 앞의 예제와 같다고 가정)",
+          "code": "fn main() {\n    let canvas = Canvas {\n        items: vec![Box::new(String::from(\"안녕\"))],\n    };\n\n    canvas.draw_all();\n}",
+          "options": [
+            "안녕",
+            "[안녕]",
+            "컴파일 에러",
+            "아무것도 출력되지 않음"
+          ],
+          "answer": 2,
+          "explain": "String은 Render를 구현하지 않으므로 Box<String>을 Box<dyn Render>로 변환할 수 없습니다. 실행 전에 트레이트 바운드 에러가 납니다."
+        },
+        {
+          "type": "tf",
+          "q": "동적 디스패치를 쓰면 컴파일러가 호출 대상을 미리 알 수 없어 인라이닝 같은 최적화를 적용하기 어려워진다.",
+          "answer": true,
+          "explain": "실행 시점에 포인터를 따라가 호출할 함수를 정하므로 컴파일러가 본문을 펼쳐 넣을 수 없습니다."
+        },
+        {
+          "type": "mc",
+          "q": "제네릭 코드가 정적 디스패치가 되는 이유는?",
+          "options": [
+            "제네릭 함수는 항상 인라인되기 때문",
+            "제네릭은 힙을 쓰지 않기 때문",
+            "트레이트 바운드가 런타임에 검사되기 때문",
+            "컴파일러가 단형화로 구체 타입별 코드를 만들어 호출 대상이 확정되기 때문"
+          ],
+          "answer": 3,
+          "explain": "단형화는 각 구체 타입마다 전용 코드를 생성하므로 어떤 메서드를 부를지가 컴파일 타임에 정해집니다."
+        },
+        {
+          "type": "order",
+          "q": "Label에 Render를 구현하는 코드가 되도록 올바른 순서로 배열하세요",
+          "items": [
+            "impl Render for Label {",
+            "    fn render(&self) -> String {",
+            "        format!(\"[{}]\", self.text)",
+            "    }",
+            "}"
+          ],
+          "explain": "impl 블록 안에 트레이트가 요구한 render 메서드를 구현하고, 마지막 표현식이 반환값이 됩니다."
+        },
+        {
+          "type": "match",
+          "q": "용어와 설명을 연결하세요",
+          "pairs": [
+            [
+              "정적 디스패치",
+              "컴파일 타임에 호출할 함수가 확정되는 방식"
+            ],
+            [
+              "동적 디스패치",
+              "런타임에 조회표를 따라 호출 대상을 찾는 방식"
+            ],
+            [
+              "Box<dyn Trait>",
+              "힙에 놓인 트레이트 객체를 소유하는 타입"
+            ],
+            [
+              "단형화",
+              "제네릭을 구체 타입별 코드로 펼치는 과정"
+            ]
+          ],
+          "explain": "제네릭은 단형화를 거쳐 정적 디스패치가 되고, 트레이트 객체는 동적 디스패치를 씁니다."
+        },
+        {
+          "type": "mc",
+          "q": "다음 중 제네릭 대신 트레이트 객체를 골라야 하는 상황은?",
+          "options": [
+            "항상 같은 한 가지 타입만 다루고 성능이 가장 중요할 때",
+            "라이브러리 사용자가 나중에 정의할 타입까지 한 컬렉션에 담아야 할 때",
+            "컴파일 시간을 줄이는 것이 유일한 목표일 때",
+            "트레이트에 기본 구현을 넣고 싶을 때"
+          ],
+          "answer": 1,
+          "explain": "컴파일 시점에 타입 집합을 알 수 없고 이종 컬렉션이 필요할 때가 트레이트 객체의 자리입니다."
+        }
+      ]
+    },
+    {
+      "id": "ch18-3",
+      "title": "상태 패턴을 트레이트 객체로 구현하기",
+      "summary": "상태 패턴은 값이 가질 수 있는 상태마다 객체를 하나씩 두고, 각 상태가 자기 규칙과 다음 상태로의 전이를 책임지게 하는 설계입니다. 바깥 코드는 물론이고 값을 담은 구조체조차 상태별 동작을 알 필요가 없습니다. 티켓 워크플로를 예로 들어 봅시다.\n\n```rust\npub struct Ticket {\n    state: Option<Box<dyn State>>,\n    note: String,\n}\n\nimpl Ticket {\n    pub fn new() -> Ticket {\n        Ticket {\n            state: Some(Box::new(Open {})),\n            note: String::new(),\n        }\n    }\n\n    pub fn write(&mut self, text: &str) {\n        self.note.push_str(text);\n    }\n\n    pub fn start(&mut self) {\n        if let Some(s) = self.state.take() {\n            self.state = Some(s.start());\n        }\n    }\n\n    pub fn label(&self) -> &str {\n        self.state.as_ref().unwrap().label()\n    }\n}\n\ntrait State {\n    fn start(self: Box<Self>) -> Box<dyn State>;\n    fn label(&self) -> &str;\n}\n\nstruct Open {}\n\nimpl State for Open {\n    fn start(self: Box<Self>) -> Box<dyn State> {\n        Box::new(InProgress {})\n    }\n\n    fn label(&self) -> &str {\n        \"열림\"\n    }\n}\n\nstruct InProgress {}\n\nimpl State for InProgress {\n    fn start(self: Box<Self>) -> Box<dyn State> {\n        self\n    }\n\n    fn label(&self) -> &str {\n        \"진행 중\"\n    }\n}\n```\n\n눈에 띄는 문법이 둘 있습니다. 첫째는 `self: Box<Self>`입니다. 수신자를 이렇게 적으면 그 메서드는 `Box`에 담긴 값에서만 부를 수 있고, 호출과 동시에 그 `Box`의 소유권을 가져갑니다. 옛 상태를 통째로 소비해 버리므로 전이 후에 예전 상태를 실수로 다시 쓸 길이 없습니다.\n\n둘째는 `state` 필드가 왜 `Option<Box<dyn State>>`인가입니다. `start`는 `&mut self`만 받는데, 전이를 하려면 필드에서 상태 값을 **꺼내** 소유권을 넘겨야 합니다. 빌린 값에서는 그냥 옮길 수 없고, 러스트는 구조체 필드를 비워 둔 채로 남겨 두는 것도 허용하지 않습니다. `Option::take`가 이 문제를 풀어 줍니다. 안에 있던 `Some`을 꺼내 돌려주고 자리에는 `None`을 남기므로, 합법적으로 소유권을 가져와 새 상태로 바꾼 뒤 다시 채워 넣을 수 있습니다.\n\n`label`은 반대로 소유권이 필요 없습니다. 그래서 `as_ref`로 `Option<Box<dyn State>>`를 `Option<&Box<dyn State>>`로 바꾼 뒤 참조만 빌려 씁니다. `unwrap`이 패닉하지 않는 이유는, 모든 공개 메서드가 끝날 때 `state`를 반드시 `Some`으로 되돌려 놓기 때문입니다.\n\n이 설계의 장점은 확장성입니다. `Ticket`의 메서드는 상태가 무엇이든 똑같이 생겼고, 상태를 하나 추가하려면 구조체 하나와 트레이트 구현 하나만 쓰면 됩니다. `Ticket`을 쓰는 코드에도, `Ticket`의 메서드에도 `match`가 필요 없습니다.\n\n물론 대가도 있습니다. 전이를 상태 자신이 알고 있으므로 상태끼리 서로 결합됩니다. `InProgress`와 완료 상태 사이에 새 상태를 끼워 넣으려면 기존 상태의 코드를 고쳐야 합니다. 중복도 생깁니다. 자기 자신을 반환하는 전이를 트레이트 기본 구현으로 묶고 싶지만, 트레이트 객체로 쓸 때는 구체적인 `Self`가 무엇인지 알 수 없어 그렇게 할 수 없습니다. `Ticket`의 여러 메서드가 똑같은 `take` 패턴을 반복하는 것도 눈에 걸립니다. 그리고 근본적으로, 잘못된 순서로 호출해도 컴파일러는 아무 말을 하지 않습니다. 이 점을 다음 레슨에서 다르게 풀어 봅니다.",
+      "keyPoints": [
+        "상태 패턴은 상태마다 타입을 두고 그 타입이 전이와 동작 규칙을 책임지게 한다.",
+        "self: Box<Self> 수신자는 Box에 담긴 값에서만 호출되며 옛 상태의 소유권을 가져가 소비한다.",
+        "&mut self만 가진 상태에서 필드 값의 소유권을 얻으려고 Option::take로 값을 꺼내고 None을 남긴다.",
+        "as_ref는 소유권 없이 Option 안의 값을 빌릴 때 쓴다.",
+        "새 상태 추가가 쉬운 대신 상태끼리 결합되고 로직 중복이 생기며, 잘못된 전이는 여전히 런타임 문제로 남는다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "메서드 수신자를 `self: Box<Self>`로 쓰는 이유로 가장 알맞은 것은?",
+          "options": [
+            "힙 할당을 피하기 위해",
+            "Box에 담긴 옛 상태의 소유권을 가져가 소비하고 새 상태를 돌려주기 위해",
+            "메서드를 공개(pub)로 만들기 위해",
+            "트레이트 기본 구현을 강제하기 위해"
+          ],
+          "answer": 1,
+          "explain": "소유권을 가져가므로 전이가 끝난 뒤 옛 상태 값을 다시 사용할 수 없게 됩니다."
+        },
+        {
+          "type": "fill",
+          "q": "상태 전이 코드입니다. 빈칸에 들어갈 메서드는?",
+          "code": "pub fn start(&mut self) {\n    if let Some(s) = self.state.___() {\n        self.state = Some(s.start());\n    }\n}",
+          "options": [
+            "take",
+            "as_ref",
+            "clone",
+            "iter"
+          ],
+          "answer": 0,
+          "explain": "take는 Option 안의 값을 꺼내 돌려주고 자리에 None을 남겨, 빌린 구조체에서도 소유권을 옮길 수 있게 해 줍니다."
+        },
+        {
+          "type": "tf",
+          "q": "`self.state = self.state.start();` 처럼 take 없이 바로 대입해도 문제없이 컴파일된다.",
+          "answer": false,
+          "explain": "&mut self로 빌린 필드에서는 값을 그대로 옮겨 낼 수 없습니다. 그래서 take로 값을 빼내고 None을 남기는 우회가 필요합니다."
+        },
+        {
+          "type": "output",
+          "q": "앞의 Ticket 예제를 쓸 때 이 코드의 출력은?",
+          "code": "fn main() {\n    let mut t = Ticket::new();\n    println!(\"{}\", t.label());\n    t.start();\n    t.start();\n    println!(\"{}\", t.label());\n}",
+          "options": [
+            "열림 / 열림",
+            "열림 / 진행 중",
+            "진행 중 / 진행 중",
+            "컴파일 에러"
+          ],
+          "answer": 1,
+          "explain": "처음 start에서 Open이 InProgress로 바뀌고, InProgress의 start는 self를 그대로 돌려주므로 두 번째 호출은 상태를 바꾸지 않습니다."
+        },
+        {
+          "type": "mc",
+          "q": "`label` 메서드에서 `as_ref`를 쓰는 이유는?",
+          "options": [
+            "Option을 Result로 바꾸기 위해",
+            "상태 값을 복제하기 위해",
+            "&self로 빌린 필드에서 소유권을 옮기지 않고 안의 값을 빌리기 위해",
+            "None일 때 기본값을 주기 위해"
+          ],
+          "answer": 2,
+          "explain": "as_ref는 Option<T>를 Option<&T>로 바꿔 줍니다. 이것이 없으면 &self에서 값을 밖으로 옮기려 한다는 에러가 납니다."
+        },
+        {
+          "type": "match",
+          "q": "요소와 역할을 연결하세요",
+          "pairs": [
+            [
+              "Option::take",
+              "값을 꺼내고 자리에 None을 남긴다"
+            ],
+            [
+              "self: Box<Self>",
+              "Box에 담긴 값에서만 호출되며 소유권을 가져간다"
+            ],
+            [
+              "as_ref",
+              "Option<T>를 Option<&T>로 바꾼다"
+            ],
+            [
+              "State 트레이트",
+              "상태별 동작과 전이 규칙을 담는 공통 인터페이스"
+            ]
+          ],
+          "explain": "이 네 조각이 모여 상태 전이를 안전하게 만듭니다."
+        },
+        {
+          "type": "tf",
+          "q": "상태 패턴에서 새 상태를 추가하려면 Ticket의 공개 메서드마다 match 문을 고쳐야 한다.",
+          "answer": false,
+          "explain": "구조체 하나와 트레이트 구현 하나만 추가하면 됩니다. 이것이 상태 패턴의 가장 큰 이점입니다."
+        },
+        {
+          "type": "mc",
+          "q": "이 상태 패턴 구현의 단점으로 보기 어려운 것은?",
+          "options": [
+            "전이를 상태 자신이 알고 있어 상태끼리 결합된다",
+            "비슷한 전이 메서드 구현이 중복된다",
+            "잘못된 순서의 호출을 컴파일러가 막아 주지 못한다",
+            "새 상태를 추가할 때마다 기존 모든 상태를 반드시 수정해야 한다"
+          ],
+          "answer": 3,
+          "explain": "새 상태 추가 자체는 쉽습니다. 다만 기존 전이 경로 사이에 끼워 넣는 경우에는 관련 상태를 고쳐야 합니다."
+        }
+      ]
+    },
+    {
+      "id": "ch18-4",
+      "title": "상태를 타입으로 인코딩하기",
+      "summary": "앞 레슨의 상태 패턴은 상태를 값 안에 감췄습니다. 러스트다운 다른 선택지는 상태를 아예 **타입으로 바꾸는 것**입니다. 그러면 잘못된 상태에서의 조작이 런타임 문제가 아니라 컴파일 에러가 됩니다.\n\n```rust\npub struct Draft {\n    text: String,\n}\n\npub struct InReview {\n    text: String,\n}\n\npub struct Published {\n    text: String,\n}\n\nimpl Draft {\n    pub fn new() -> Draft {\n        Draft { text: String::new() }\n    }\n\n    pub fn write(&mut self, s: &str) {\n        self.text.push_str(s);\n    }\n\n    pub fn submit(self) -> InReview {\n        InReview { text: self.text }\n    }\n}\n\nimpl InReview {\n    pub fn approve(self) -> Published {\n        Published { text: self.text }\n    }\n}\n\nimpl Published {\n    pub fn text(&self) -> &str {\n        &self.text\n    }\n}\n```\n\n핵심은 무엇이 **없는지**입니다. `Draft`와 `InReview`에는 `text` 메서드가 아예 정의되어 있지 않습니다. 검토 중인 글의 본문을 실수로 화면에 뿌리는 코드는 빈 문자열을 돌려받는 게 아니라 아예 컴파일되지 않습니다. 필드가 비공개이고 `Published`를 만들어 주는 함수가 `approve`뿐이므로, 발행된 글을 얻는 유일한 경로는 `Draft` → `InReview` → `Published` 순서를 밟는 것입니다. 워크플로 자체가 타입 시스템에 새겨진 셈입니다.\n\n또 하나 눈여겨볼 것은 `submit(self)`과 `approve(self)`가 참조가 아니라 값을 받는다는 점입니다. 호출하면 원래 값이 소비되어 사라집니다. 승인 요청을 보낸 뒤에도 옛 `Draft`가 어딘가 살아 있는 일이 생기지 않습니다.\n\n```rust\nfn main() {\n    let mut post = Draft::new();\n    post.write(\"오늘의 메모\");\n\n    let post = post.submit();\n    let post = post.approve();\n\n    println!(\"{}\", post.text());\n}\n```\n\n전이 메서드가 새 값을 돌려주므로 호출자는 `let post = ...` 로 다시 묶어 줘야 합니다. 바꿔 말하면 상태 전이가 호출자 코드에 드러납니다. 상태를 완전히 감추던 고전적 상태 패턴과는 더 이상 같지 않습니다.\n\n두 방식은 서로 다른 것을 얻고 잃습니다. 트레이트 객체 방식은 전이를 값 내부에 감추고 런타임에 상태를 바꿀 수 있지만, 잘못된 순서의 호출은 조용히 넘어갑니다. 타입 방식은 잘못된 상태를 컴파일 타임에 잡아 주지만 캡슐화가 느슨해지고, 상태 조합이 많아지면 타입과 전이 메서드가 늘어납니다. 객체지향 패턴을 그대로 옮기는 대신 소유권과 타입 검사를 활용해 문제를 다시 그려 보면, 아예 버그가 존재할 수 없는 설계가 나오기도 합니다.",
+      "keyPoints": [
+        "상태마다 별도 타입을 두면 잘못된 상태에서의 조작이 컴파일 에러가 된다.",
+        "발행된 글만 본문 조회 메서드를 가지므로, 초안 본문을 노출하는 코드는 아예 컴파일되지 않는다.",
+        "전이 메서드가 self를 값으로 받아 옛 상태 값을 소비하므로 낡은 값이 남지 않는다.",
+        "전이가 호출자에게 드러나므로 순수한 상태 패턴만큼 캡슐화되지는 않는다.",
+        "두 설계는 트레이드오프 관계다. 런타임 유연성이 필요하면 트레이트 객체, 컴파일 타임 보장이 중요하면 타입 인코딩."
+      ],
+      "exercises": [
+        {
+          "type": "output",
+          "q": "앞의 Draft/InReview/Published 예제를 쓸 때 이 코드의 결과는?",
+          "code": "fn main() {\n    let d = Draft::new();\n    let r = d.submit();\n    println!(\"{}\", d.text());\n}",
+          "options": [
+            "빈 줄이 출력된다",
+            "컴파일 에러",
+            "런타임 패닉",
+            "\"오늘의 메모\"가 출력된다"
+          ],
+          "answer": 1,
+          "explain": "submit이 d의 소유권을 가져가 d는 이동된 값이고, 애초에 Draft에는 text 메서드도 없습니다. 두 가지 모두 컴파일 에러입니다."
+        },
+        {
+          "type": "fill",
+          "q": "InReview를 소비해 Published로 바꾸는 메서드입니다. 빈칸에 들어갈 수신자는?",
+          "code": "pub fn approve(___) -> Published {\n    Published { text: self.text }\n}",
+          "options": [
+            "&self",
+            "&mut self",
+            "self: Box<Self>",
+            "self"
+          ],
+          "answer": 3,
+          "explain": "self를 값으로 받아야 필드를 새 구조체로 옮길 수 있고, 옛 InReview 값도 함께 소비됩니다."
+        },
+        {
+          "type": "tf",
+          "q": "Draft에는 text 메서드가 없으므로 초안의 본문을 읽으려 하면 실행 중에 패닉이 발생한다.",
+          "answer": false,
+          "explain": "메서드가 없는 호출은 실행되기 전에 컴파일 단계에서 걸립니다. 잘못된 코드가 배포될 수 없다는 것이 이 설계의 요점입니다."
+        },
+        {
+          "type": "order",
+          "q": "글을 발행해 본문을 출력하는 순서로 배열하세요",
+          "items": [
+            "let mut post = Draft::new();",
+            "post.write(\"오늘의 메모\");",
+            "let post = post.submit();",
+            "let post = post.approve();",
+            "println!(\"{}\", post.text());"
+          ],
+          "explain": "전이 메서드가 새 타입의 값을 돌려주므로 매번 let으로 다시 묶어 줘야 합니다."
+        },
+        {
+          "type": "mc",
+          "q": "상태를 타입으로 인코딩할 때 잃게 되는 것은?",
+          "options": [
+            "컴파일 타임 검사",
+            "상태 전이가 호출자 코드에 드러나지 않는 완전한 캡슐화",
+            "필드의 비공개성",
+            "메서드 정의 능력"
+          ],
+          "answer": 1,
+          "explain": "호출자가 반환값을 새로 묶어야 하므로 전이가 바깥에 보입니다. 대신 잘못된 상태를 컴파일러가 막아 줍니다."
+        },
+        {
+          "type": "match",
+          "q": "설계와 특징을 연결하세요",
+          "pairs": [
+            [
+              "트레이트 객체 상태 패턴",
+              "상태를 값 안에 감추고 런타임에 전이한다"
+            ],
+            [
+              "타입 인코딩",
+              "잘못된 상태의 조작이 컴파일 에러가 된다"
+            ],
+            [
+              "self를 값으로 받는 전이 메서드",
+              "옛 상태 값을 소비해 다시 쓸 수 없게 한다"
+            ],
+            [
+              "Option<Box<dyn State>>",
+              "상태 전이를 위해 필드에서 값을 꺼낼 수 있게 하는 그릇"
+            ]
+          ],
+          "explain": "같은 워크플로를 두 방식으로 표현할 수 있고, 각각 다른 것을 보장합니다."
+        },
+        {
+          "type": "mc",
+          "q": "`Published` 인스턴스를 얻는 유일한 방법은?",
+          "options": [
+            "Published { text: ... }로 직접 만든다",
+            "Draft::new() 이 바로 Published를 돌려준다",
+            "InReview 값에 approve를 호출한다",
+            "Draft에 write를 두 번 호출한다"
+          ],
+          "answer": 2,
+          "explain": "필드가 비공개이고 Published를 만드는 함수가 approve뿐이므로, 초안과 검토 단계를 거쳐야만 발행 상태에 도달합니다."
+        }
+      ]
+    }
+  ]
+}

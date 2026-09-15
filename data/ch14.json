@@ -1,0 +1,340 @@
+{
+  "id": "ch14",
+  "number": 14,
+  "title": "Cargo와 Crates.io 더 알아보기",
+  "titleEn": "More About Cargo and Crates.io",
+  "emoji": "📦",
+  "pages": "365-387",
+  "intro": "이 챕터에서는 지금까지 build와 run 정도로만 써 온 Cargo의 나머지 기능을 살펴본다. 빌드 프로파일로 컴파일 설정을 조절하고, 문서화 주석으로 API 문서와 테스트를 동시에 만들고, 만든 크레이트를 crates.io에 공개하는 과정을 다룬다. 마지막으로 여러 패키지를 함께 개발하는 워크스페이스와, cargo install 및 커스텀 서브커맨드로 Cargo 자체를 확장하는 방법까지 배운다.",
+  "lessons": [
+    {
+      "id": "ch14-1",
+      "title": "릴리스 프로파일과 문서화 주석",
+      "summary": "Cargo는 컴파일 설정 묶음을 **프로파일**이라는 이름으로 관리한다. `cargo build`는 `dev` 프로파일을, `cargo build --release`는 `release` 프로파일을 사용한다. 두 프로파일은 서로 완전히 독립적이고, 아무 설정도 하지 않아도 각자 쓸 만한 기본값을 가지고 있다.\n\n기본값을 바꾸고 싶다면 패키지의 Cargo.toml에 `[profile.dev]`나 `[profile.release]` 섹션을 적고 **바꿀 항목만** 쓰면 된다. 적지 않은 항목은 기본값이 그대로 유지되므로, 프로파일 전체를 다시 정의할 필요는 없다.\n\n```toml\n[profile.dev]\nopt-level = 1\n\n[profile.release]\nopt-level = 3\n```\n\n가장 많이 손대는 항목은 `opt-level`이다. 0부터 3까지의 최적화 강도를 뜻하며 기본값은 dev가 `0`, release가 `3`이다. 개발 중에는 컴파일을 수없이 반복하므로 최적화를 줄여 빌드 시간을 아끼고, 배포용 빌드는 한 번 오래 컴파일하더라도 실행이 빠른 쪽이 이득이기 때문에 반대로 설정되어 있다.\n\n문서화는 `//` 대신 슬래시 세 개짜리 `///` 주석으로 쓴다. 이 주석은 **바로 뒤에 오는 항목**을 설명하며 마크다운을 그대로 쓸 수 있다. `cargo doc`을 실행하면 rustdoc이 HTML 문서를 target/doc 아래에 생성하고, `cargo doc --open`을 쓰면 의존성 문서까지 함께 만들어 브라우저로 바로 열어 준다.\n\n```rust\n/// 화씨 온도를 섭씨로 바꾼다.\n///\n/// # Examples\n///\n/// ```\n/// assert_eq!(0.0, temp_tools::to_celsius(32.0));\n/// ```\npub fn to_celsius(f: f64) -> f64 {\n    (f - 32.0) / 1.8\n}\n```\n\n관례적으로 쓰는 절 제목이 몇 가지 있다. `# Examples`는 사용 예시, `# Panics`는 이 함수가 패닉할 수 있는 상황, `# Errors`는 `Result`를 돌려줄 때 생길 수 있는 오류 종류, `# Safety`는 `unsafe` 함수가 호출자에게 요구하는 조건을 적는 자리다.\n\n문서 주석 안의 코드 블록은 장식이 아니다. `cargo test`를 돌리면 이 예제들이 **문서 테스트(doc test)** 로 실제 컴파일·실행된다. 덕분에 구현을 고친 뒤 문서 예제가 낡아 버리면 테스트가 바로 실패해서 알려 준다.\n\n마지막으로 `//!`는 `///`와 짝을 이루는 반대 방향의 주석이다. 뒤따르는 항목이 아니라 **이 주석을 담고 있는 항목** 자체를 설명하므로, 보통 크레이트 루트인 src/lib.rs 맨 위나 모듈 블록 안쪽 첫 줄에 써서 크레이트·모듈 전체를 소개하는 데 쓴다.",
+      "keyPoints": [
+        "cargo build는 dev, cargo build --release는 release 프로파일을 사용한다.",
+        "Cargo.toml의 [profile.*] 섹션에 적은 항목만 기본값을 덮어쓴다.",
+        "opt-level의 기본값은 dev가 0, release가 3이다.",
+        "///는 뒤따르는 항목을, //!는 주석을 담고 있는 항목(크레이트·모듈) 자체를 설명한다.",
+        "문서 주석의 예제 코드는 cargo test에서 문서 테스트로 실행된다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "Cargo.toml에 아래 설정만 추가했다. cargo build를 실행하면 어떻게 되는가?",
+          "code": "[profile.dev]\nopt-level = 2",
+          "options": [
+            "dev 프로파일의 다른 모든 설정이 초기화되어 opt-level 외에는 비활성화된다",
+            "release 프로파일에도 같은 값이 함께 적용된다",
+            "opt-level은 release에만 존재하므로 무시된다",
+            "dev 프로파일의 나머지 기본 설정은 유지되고 opt-level만 2로 바뀐다"
+          ],
+          "answer": 3,
+          "explain": "[profile.*] 섹션은 기본값 전체를 대체하지 않고, 명시한 항목만 덮어쓴다."
+        },
+        {
+          "type": "fill",
+          "q": "src/lib.rs 맨 위에서 크레이트 전체를 설명하려고 한다. 빈칸에 들어갈 주석 기호는?",
+          "code": "___ # temp_tools\n//!\n//! 온도 단위를 바꾸는 작은 유틸리티 모음.\n\npub fn to_celsius(f: f64) -> f64 {\n    (f - 32.0) / 1.8\n}",
+          "options": [
+            "///",
+            "//",
+            "//!",
+            "/* */"
+          ],
+          "answer": 2,
+          "explain": "//!는 주석을 담고 있는 항목(여기서는 크레이트 루트 파일) 자체를 문서화한다."
+        },
+        {
+          "type": "tf",
+          "q": "문서 주석 안에 적은 예제 코드는 cargo test를 실행할 때 문서 테스트로 함께 실행된다.",
+          "answer": true,
+          "explain": "예제가 구현과 어긋나면 문서 테스트가 실패하므로 문서와 코드의 동기화가 유지된다."
+        },
+        {
+          "type": "output",
+          "q": "아래 라이브러리에 대해 cargo test를 실행하면 어떤 결과가 나오는가?",
+          "code": "/// 주어진 수에 1을 더한다.\n///\n/// # Examples\n///\n/// ```\n/// assert_eq!(6, my_crate::add_one(5));\n/// ```\npub fn add_one(x: i32) -> i32 {\n    x + 2\n}",
+          "options": [
+            "문서 테스트가 통과한다",
+            "문서 테스트가 실패한다",
+            "문서 주석은 검사되지 않으므로 테스트가 0개 실행된다",
+            "컴파일 에러가 난다"
+          ],
+          "answer": 1,
+          "explain": "add_one(5)는 7을 돌려주므로 예제의 assert_eq!가 패닉하고, 문서 테스트가 실패해 구현과 문서가 어긋났음을 알려 준다."
+        },
+        {
+          "type": "mc",
+          "q": "cargo doc --open 명령이 하는 일로 가장 정확한 설명은?",
+          "options": [
+            "문서 주석만 문법 검사하고 HTML은 만들지 않는다",
+            "크레이트와 의존성의 HTML 문서를 target/doc에 만들고 브라우저로 연다",
+            "문서를 crates.io에 업로드한다",
+            "문서 테스트만 실행하고 결과를 브라우저로 연다"
+          ],
+          "answer": 1,
+          "explain": "cargo doc은 rustdoc으로 HTML을 target/doc에 생성하며, --open은 그 결과를 브라우저로 열어 준다."
+        },
+        {
+          "type": "match",
+          "q": "각 표기와 그 의미를 연결하세요.",
+          "pairs": [
+            [
+              "///",
+              "바로 뒤에 오는 항목을 설명하는 문서 주석"
+            ],
+            [
+              "//!",
+              "주석을 담고 있는 크레이트나 모듈 자체를 설명"
+            ],
+            [
+              "# Panics",
+              "이 함수가 패닉할 수 있는 상황을 적는 절"
+            ],
+            [
+              "[profile.release]",
+              "cargo build --release가 쓰는 설정 섹션"
+            ]
+          ],
+          "explain": "문서 주석은 방향이 다른 두 종류가 있고, 관례적인 절 제목으로 내용을 나눈다."
+        },
+        {
+          "type": "order",
+          "q": "문서 주석이 달린 함수가 되도록 올바른 순서로 배열하세요.",
+          "items": [
+            "/// 화씨 온도를 섭씨로 바꾼다.",
+            "/// # Examples",
+            "/// ```\n/// assert_eq!(0.0, temp_tools::to_celsius(32.0));\n/// ```",
+            "pub fn to_celsius(f: f64) -> f64 {",
+            "    (f - 32.0) / 1.8\n}"
+          ],
+          "explain": "/// 주석은 설명하려는 항목 바로 앞에 놓여야 하고, 설명 뒤에 # Examples 절과 예제 코드가 온다."
+        }
+      ]
+    },
+    {
+      "id": "ch14-2",
+      "title": "편리한 공개 API와 crates.io 배포",
+      "summary": "크레이트를 공개할 때는 내부 구조보다 **쓰는 사람이 보게 될 구조**가 중요하다. 개발하면서 편하게 나눠 둔 모듈 계층이 사용자에게는 오히려 걸림돌이 되기 쉽다. `use my_crate::a::b::c::Thing;`처럼 긴 경로를 외우게 만들 이유는 없다.\n\n다행히 내부 구조를 갈아엎지 않고도 겉모습만 바꿀 수 있다. `pub use`로 항목을 **재수출(re-export)** 하면, 원래 위치는 그대로 두고 마치 그 자리에 정의된 것처럼 다른 경로에서도 공개된다.\n\n```rust\n//! # shapes\n//!\n//! 도형 넓이를 다루는 작은 라이브러리.\n\npub use self::plane::Circle;\npub use self::area::area_of;\n\npub mod plane {\n    pub struct Circle {\n        pub r: f64,\n    }\n}\n\npub mod area {\n    use crate::plane::Circle;\n\n    pub fn area_of(c: &Circle) -> f64 {\n        std::f64::consts::PI * c.r * c.r\n    }\n}\n```\n\n이렇게 하면 사용자는 `use shapes::Circle;`만 써도 되고, `cargo doc`이 만든 문서 첫 페이지에도 재수출된 항목이 바로 나열된다. 물론 원래 경로인 `shapes::plane::Circle`도 여전히 유효하다.\n\n공개하려면 먼저 crates.io 계정과 API 토큰이 필요하다. 토큰을 받아 `cargo login`으로 등록하면 Cargo가 이를 로컬(~/.cargo/credentials.toml)에 저장한다. 이 토큰은 비밀번호나 마찬가지이므로 공유하면 안 되고, 노출되었다면 즉시 폐기하고 새로 발급해야 한다.\n\n그다음 Cargo.toml의 `[package]` 섹션에 메타데이터를 채운다. 이름은 crates.io 전체에서 **선착순**이라 이미 쓰인 이름은 쓸 수 없다. 그리고 `description`과 `license`가 비어 있으면 업로드가 거부된다. 라이선스는 SPDX 식별자를 쓰며, Rust 생태계에서는 `\"MIT OR Apache-2.0\"`처럼 두 개를 함께 거는 관행이 흔하다.\n\n```toml\n[package]\nname = \"shapes\"\nversion = \"0.1.0\"\nedition = \"2024\"\ndescription = \"도형 넓이를 계산하는 작은 라이브러리\"\nlicense = \"MIT OR Apache-2.0\"\n```\n\n준비가 끝나면 `cargo publish`로 업로드한다. 여기서 반드시 기억할 점은 **공개가 영구적**이라는 것이다. 한번 올린 버전은 덮어쓸 수도, 마음대로 지울 수도 없다. 다른 프로젝트의 빌드가 언제나 재현되도록 보장하기 위해서다. 대신 버전은 얼마든지 새로 올릴 수 있으므로, 수정은 시맨틱 버저닝에 맞춰 version을 올리고 다시 publish하면 된다.\n\n문제가 있는 버전을 더 이상 쓰지 않게 하려면 `cargo yank --vers 1.0.1`을 쓴다. yank는 삭제가 아니라 \"신규 의존 금지\"다. 이미 Cargo.lock에 그 버전을 기록해 둔 프로젝트는 그대로 빌드되고, 앞으로 만들어질 Cargo.lock만 그 버전을 고르지 않는다. `--undo`를 붙이면 되돌릴 수 있다. 코드가 지워지는 게 아니므로, 실수로 올린 비밀 키 같은 것은 yank로 해결되지 않고 즉시 폐기·교체해야 한다.",
+      "keyPoints": [
+        "pub use는 항목을 다른 경로에서도 공개해 사용자용 API를 평평하게 만든다.",
+        "cargo login으로 API 토큰을 저장하며, 토큰은 절대 공유하면 안 된다.",
+        "description과 license가 없으면 cargo publish가 거부된다.",
+        "publish는 영구적이어서 같은 버전을 덮어쓰거나 지울 수 없다.",
+        "cargo yank는 신규 의존만 막을 뿐 기존 프로젝트의 빌드는 깨뜨리지 않는다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "라이브러리에 pub use를 추가하는 가장 큰 이유는?",
+          "options": [
+            "비공개 항목을 공개로 바꾸려고",
+            "컴파일 시간을 줄이려고",
+            "내부 모듈 구조를 바꾸지 않고도 사용자에게 짧고 편한 경로를 제공하려고",
+            "의존성 버전을 고정하려고"
+          ],
+          "answer": 2,
+          "explain": "pub use는 재수출이라 내부 구조는 그대로 두고 공개 API의 모양만 바꿀 수 있다."
+        },
+        {
+          "type": "fill",
+          "q": "Circle을 크레이트 최상위에서도 쓸 수 있게 재수출하려면 빈칸에 무엇이 들어가야 하는가?",
+          "code": "___ self::plane::Circle;\n\npub mod plane {\n    pub struct Circle {\n        pub r: f64,\n    }\n}",
+          "options": [
+            "pub use",
+            "use",
+            "pub mod",
+            "pub fn"
+          ],
+          "answer": 0,
+          "explain": "use만 쓰면 크레이트 안에서만 쓸 수 있는 이름이 되고, pub use라야 외부에도 공개된다."
+        },
+        {
+          "type": "output",
+          "q": "위 shapes 크레이트를 의존성으로 쓰는 프로그램이 아래처럼 작성되었다. 결과는?",
+          "code": "use shapes::Circle;\nuse shapes::area_of;\n\nfn main() {\n    let c = Circle { r: 1.0 };\n    println!(\"{:.2}\", area_of(&c));\n}",
+          "options": [
+            "컴파일 성공 (재수출된 경로가 유효하다)",
+            "컴파일 에러: Circle은 shapes::plane 경로로만 쓸 수 있다",
+            "컴파일 에러: pub use는 같은 크레이트 안에서만 유효하다",
+            "실행 중 패닉"
+          ],
+          "answer": 0,
+          "explain": "pub use로 재수출하면 그 이름이 최상위에 정의된 것처럼 외부 크레이트에서도 쓸 수 있다."
+        },
+        {
+          "type": "mc",
+          "q": "아래 Cargo.toml로 cargo publish를 실행하면 어떻게 되는가?",
+          "code": "[package]\nname = \"my_unique_crate_name\"\nversion = \"0.1.0\"\nedition = \"2024\"",
+          "options": [
+            "정상적으로 업로드된다",
+            "description과 license가 없어 업로드가 거부된다",
+            "edition이 없어서 거부된다",
+            "경고만 뜨고 업로드된다"
+          ],
+          "answer": 1,
+          "explain": "crates.io는 크레이트가 무엇이고 어떤 조건으로 쓸 수 있는지 알 수 있도록 description과 license를 필수로 요구한다."
+        },
+        {
+          "type": "tf",
+          "q": "cargo publish로 올린 버전은 나중에 같은 버전 번호로 다시 올려 내용을 덮어쓸 수 있다.",
+          "answer": false,
+          "explain": "공개는 영구적이다. 수정하려면 version을 올려 새 버전으로 publish해야 한다."
+        },
+        {
+          "type": "tf",
+          "q": "특정 버전을 yank하면, 이미 그 버전을 Cargo.lock에 기록해 쓰고 있던 프로젝트의 빌드도 깨진다.",
+          "answer": false,
+          "explain": "yank는 새로운 의존만 막는다. 기존 Cargo.lock은 그대로 동작하고 코드도 삭제되지 않는다."
+        },
+        {
+          "type": "match",
+          "q": "명령과 그 역할을 연결하세요.",
+          "pairs": [
+            [
+              "cargo login",
+              "API 토큰을 로컬에 저장해 인증 준비"
+            ],
+            [
+              "cargo publish",
+              "지정한 버전을 crates.io에 영구 업로드"
+            ],
+            [
+              "cargo yank --vers 1.0.1",
+              "해당 버전에 새로 의존하지 못하게 막음"
+            ],
+            [
+              "cargo yank --vers 1.0.1 --undo",
+              "yank를 취소해 다시 의존 가능하게 함"
+            ]
+          ],
+          "explain": "공개 흐름은 로그인 → 메타데이터 작성 → publish이고, 문제가 생긴 버전은 yank로 신규 사용만 차단한다."
+        },
+        {
+          "type": "order",
+          "q": "src/lib.rs가 올바른 순서가 되도록 배열하세요.",
+          "items": [
+            "//! # shapes",
+            "//!",
+            "//! 도형 넓이를 다루는 작은 라이브러리.",
+            "pub use self::plane::Circle;",
+            "pub mod plane {\n    pub struct Circle { pub r: f64 }\n}"
+          ],
+          "explain": "크레이트 전체를 설명하는 //! 주석이 파일 맨 위에 오고, 그 뒤에 재수출과 모듈 정의가 이어진다."
+        }
+      ]
+    },
+    {
+      "id": "ch14-3",
+      "title": "워크스페이스와 Cargo 확장",
+      "summary": "프로젝트가 커지면 라이브러리 하나가 계속 부풀어 오르고, 결국 여러 패키지로 쪼개고 싶어진다. 이때 쓰는 기능이 **워크스페이스**다. 워크스페이스는 하나의 Cargo.lock과 하나의 target 디렉터리를 공유하는 패키지들의 묶음이다.\n\n최상위 Cargo.toml에는 `[package]` 섹션이 없고 `[workspace]` 섹션만 둔다. 워크스페이스 안에서 `cargo new`를 실행하면 새 패키지가 members에 자동으로 추가된다.\n\n```toml\n[workspace]\nresolver = \"3\"\nmembers = [\"cli\", \"core\"]\n```\n\n빌드 결과물은 최상위 target 한 곳에만 쌓인다. 멤버 디렉터리 안에서 빌드해도 결과는 워크스페이스 루트의 target으로 간다. 멤버들이 서로 의존하는 것을 전제로 한 구조라, 각자 target을 가지면 같은 크레이트를 반복해서 다시 컴파일해야 하기 때문이다.\n\n멤버끼리의 의존은 자동이 아니다. 필요한 쪽 Cargo.toml에 경로 의존성을 직접 적어야 한다.\n\n```toml\n# cli/Cargo.toml\n[dependencies]\ncore = { path = \"../core\" }\n```\n\n외부 의존성도 마찬가지다. `core`가 `rand`를 쓴다고 해서 `cli`가 공짜로 쓸 수 있는 건 아니고, `cli/Cargo.toml`에도 따로 적어야 한다. 다만 Cargo.lock이 하나뿐이므로 두 패키지는 호환되는 한 **같은 버전** 하나로 해결되고, 같은 크레이트를 중복해서 내려받지 않는다.\n\n명령은 기본적으로 워크스페이스 전체에 적용된다. 루트에서 `cargo build`나 `cargo test`를 실행하면 모든 멤버가 대상이 된다. 특정 패키지만 고르려면 `-p` 플래그를 쓴다. `cargo run -p cli`, `cargo test -p core`처럼 쓰고, 공개할 때도 멤버마다 따로 `cargo publish -p core` 식으로 올려야 한다.\n\n```text\n$ cargo run -p cli\n$ cargo test -p core\n```\n\nCargo에는 배포 말고 설치 기능도 있다. `cargo install`은 crates.io에 올라온 **바이너리 타깃**이 있는 크레이트를 내려받아 컴파일한 뒤 설치 루트의 bin 폴더(rustup 기본 설정이면 $HOME/.cargo/bin)에 넣어 준다. 라이브러리 전용 크레이트는 실행 파일이 없으므로 설치할 수 없다. 설치한 도구를 바로 실행하려면 그 디렉터리가 $PATH에 있어야 한다.\n\n마지막으로 Cargo 자체를 확장할 수 있다. $PATH 어딘가에 `cargo-something`이라는 이름의 실행 파일이 있으면 `cargo something`처럼 서브커맨드인 양 부를 수 있고, `cargo --list`에도 함께 나타난다. Cargo를 고치지 않고도 새 명령을 덧붙일 수 있는 구조라, 유용한 도구를 `cargo install`로 받아 곧바로 내장 명령처럼 쓸 수 있다.",
+      "keyPoints": [
+        "워크스페이스 루트 Cargo.toml에는 [package]가 없고 [workspace] members만 있다.",
+        "워크스페이스 전체가 하나의 target 디렉터리와 하나의 Cargo.lock을 공유한다.",
+        "멤버 사이 의존과 외부 의존은 각 패키지의 Cargo.toml에 명시해야 한다.",
+        "-p 플래그로 특정 패키지만 빌드·테스트·배포할 수 있다.",
+        "cargo install은 바이너리 타깃이 있는 크레이트만 설치하며, cargo-이름 실행 파일은 cargo 서브커맨드가 된다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "워크스페이스 루트의 Cargo.toml에 대한 설명으로 옳은 것은?",
+          "options": [
+            "[package] 섹션 없이 [workspace] 섹션과 members 목록을 갖는다",
+            "[package]와 [workspace]를 모두 반드시 가져야 한다",
+            "members는 적지 않아도 하위 디렉터리가 자동으로 모두 멤버가 된다",
+            "루트에는 Cargo.toml이 없어도 된다"
+          ],
+          "answer": 0,
+          "explain": "워크스페이스 루트는 패키지가 아니라 묶음을 정의하므로 [workspace]와 members를 갖는다."
+        },
+        {
+          "type": "tf",
+          "q": "워크스페이스의 각 멤버 패키지는 자기 디렉터리 안에 별도의 target 디렉터리를 갖는다.",
+          "answer": false,
+          "explain": "target은 워크스페이스 루트 한 곳뿐이다. 멤버 디렉터리에서 빌드해도 결과물은 루트 target에 모인다."
+        },
+        {
+          "type": "fill",
+          "q": "워크스페이스 루트에서 cli 패키지만 실행하려고 한다. 빈칸에 들어갈 플래그는?",
+          "code": "$ cargo run ___ cli",
+          "options": [
+            "--bin",
+            "-m",
+            "-p",
+            "--member"
+          ],
+          "answer": 2,
+          "explain": "-p(--package) 플래그로 워크스페이스 안의 특정 패키지를 지정한다."
+        },
+        {
+          "type": "output",
+          "q": "core/Cargo.toml에만 rand를 추가한 상태에서 cli/src/main.rs에 use rand; 를 쓰고 빌드하면?",
+          "code": "// cli/src/main.rs\nuse rand;\n\nfn main() {\n    println!(\"hi\");\n}",
+          "options": [
+            "정상 빌드된다 (워크스페이스가 의존성을 공유한다)",
+            "경고만 나고 빌드된다",
+            "컴파일 에러: cli에는 rand가 의존성으로 없다",
+            "실행 중 패닉"
+          ],
+          "answer": 2,
+          "explain": "Cargo.lock은 공유하지만 의존성 목록은 패키지별이다. cli에서 쓰려면 cli/Cargo.toml에도 rand를 적어야 한다."
+        },
+        {
+          "type": "tf",
+          "q": "워크스페이스 루트에서 cargo test를 실행하면 모든 멤버 패키지의 테스트가 실행된다.",
+          "answer": true,
+          "explain": "-p로 범위를 좁히지 않으면 워크스페이스 전체가 대상이 된다."
+        },
+        {
+          "type": "mc",
+          "q": "cargo install에 대한 설명으로 옳은 것은?",
+          "options": [
+            "라이브러리 전용 크레이트도 설치해 다른 프로젝트에서 자동으로 쓸 수 있게 한다",
+            "설치한 크레이트를 현재 프로젝트의 의존성 목록에 추가한다",
+            "시스템 패키지 관리자를 대체하도록 설계되었다",
+            "바이너리 타깃이 있는 크레이트를 설치 루트의 bin 폴더에 설치한다"
+          ],
+          "answer": 3,
+          "explain": "실행 파일이 만들어지는 크레이트만 설치 대상이며, 보통 $HOME/.cargo/bin에 들어간다."
+        },
+        {
+          "type": "match",
+          "q": "개념과 설명을 연결하세요.",
+          "pairs": [
+            [
+              "[workspace] members",
+              "함께 개발할 패키지 목록"
+            ],
+            [
+              "공유 Cargo.lock",
+              "모든 멤버가 같은 의존성 버전을 쓰게 함"
+            ],
+            [
+              "-p 플래그",
+              "워크스페이스 안의 특정 패키지만 대상으로 지정"
+            ],
+            [
+              "cargo-something",
+              "$PATH에 있으면 cargo something으로 호출되는 확장 명령"
+            ]
+          ],
+          "explain": "워크스페이스는 lock 파일과 target을 공유하고, Cargo는 PATH의 cargo- 접두 실행 파일을 서브커맨드로 인식한다."
+        },
+        {
+          "type": "order",
+          "q": "cli가 core를 사용하는 워크스페이스를 만드는 순서로 배열하세요.",
+          "items": [
+            "mkdir myapp && cd myapp",
+            "루트 Cargo.toml에 [workspace] 와 resolver 작성",
+            "cargo new cli",
+            "cargo new core --lib",
+            "cli/Cargo.toml에 core = { path = \"../core\" } 추가"
+          ],
+          "explain": "워크스페이스 정의를 먼저 만든 뒤 멤버를 생성하고, 멤버 사이 의존성은 마지막에 직접 명시한다."
+        }
+      ]
+    }
+  ]
+}

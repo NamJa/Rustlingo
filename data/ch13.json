@@ -1,0 +1,471 @@
+{
+  "id": "ch13",
+  "number": 13,
+  "title": "클로저와 이터레이터",
+  "titleEn": "Iterators and Closures",
+  "emoji": "🔁",
+  "pages": "336-364",
+  "intro": "이 챕터에서는 함수형 언어에서 빌려온 두 기능, 클로저와 이터레이터를 다룹니다. 클로저가 주변 환경의 값을 어떤 방식으로 붙잡는지, 그 방식에 따라 어떤 Fn 트레이트가 구현되는지 배웁니다. 이어서 이터레이터의 게으른 동작과 어댑터 체인을 익히고, 12장의 minigrep을 더 간결하게 다듬으면서 이 추상화가 실행 비용을 추가하지 않는다는 점까지 확인합니다.",
+  "lessons": [
+    {
+      "id": "ch13-1",
+      "title": "클로저: 환경을 붙잡는 익명 함수",
+      "summary": "클로저는 **이름이 없는 함수**입니다. 변수에 담아 둘 수도 있고, 다른 함수의 인자로 넘길 수도 있습니다. 일반 함수 `fn`과 가장 크게 다른 점은, 클로저가 **자신이 정의된 자리의 변수들을 그대로 쓸 수 있다**는 것입니다. 정의는 여기서 하고 실행은 저 멀리 다른 맥락에서 하는 일이 가능해집니다.\n\n예를 들어 쿠폰 코드를 발급하는 상황을 생각해 봅시다. 사용자가 원하는 코드를 지정했으면 그걸 쓰고, 지정하지 않았으면 가게가 가진 기본 코드를 씁니다.\n\n```rust\nstruct Shop {\n    default_code: String,\n}\n\nimpl Shop {\n    fn issue(&self, wanted: Option<String>) -> String {\n        wanted.unwrap_or_else(|| self.default_code.clone())\n    }\n}\n\nfn main() {\n    let shop = Shop { default_code: String::from(\"WELCOME\") };\n    println!(\"{}\", shop.issue(Some(String::from(\"VIP\"))));\n    println!(\"{}\", shop.issue(None));\n}\n```\n\n여기서 `|| self.default_code.clone()` 부분이 클로저입니다. 두 개의 파이프 `||` 사이가 매개변수 자리인데 지금은 비어 있으니 인자를 받지 않는 클로저입니다. `Option<T>`의 `unwrap_or_else`는 값이 `Some`이면 그 안의 값을 그대로 돌려주고, `None`일 때만 넘겨받은 클로저를 호출합니다. 즉 위 코드에서 첫 번째 호출은 클로저를 아예 실행하지 않습니다.\n\n주목할 점은 표준 라이브러리가 `Shop`이라는 타입을 전혀 모른다는 것입니다. 클로저가 `self`에 대한 참조를 함께 들고 가기 때문에, 라이브러리는 \"필요하면 이걸 실행해라\"는 지시만 받아도 우리가 원하는 동작을 해냅니다. 일반 함수로는 이렇게 주변 값을 끌어안을 수 없습니다.\n\n또 하나의 차이는 **타입 표기**입니다. `fn`은 매개변수와 반환값 타입을 반드시 적어야 합니다. 함수 시그니처는 다른 사람에게 공개되는 약속이기 때문입니다. 반면 클로저는 보통 좁은 범위에서 잠깐 쓰이고 외부에 이름을 드러내지도 않으므로, 컴파일러가 사용처를 보고 타입을 추론합니다. 물론 명확성을 위해 직접 적어도 됩니다.\n\n```rust\nfn double_v1   (x: i32) -> i32 { x * 2 }\nlet double_v2 = |x: i32| -> i32 { x * 2 };\nlet double_v3 = |x|             { x * 2 };\nlet double_v4 = |x|               x * 2  ;\n```\n\n네 가지 모두 같은 동작을 합니다. 다만 `double_v3`, `double_v4`처럼 타입을 생략한 클로저는 **실제로 호출되는 곳이 있어야** 컴파일러가 타입을 정할 수 있습니다.\n\n여기서 흔히 걸려 넘어지는 규칙이 하나 있습니다. 컴파일러는 클로저마다 매개변수와 반환값에 대해 **딱 하나의 구체 타입**만 정합니다. 제네릭 함수가 아니라는 뜻입니다.\n\n```rust\nlet same = |x| x;\nlet a = same(String::from(\"hi\")); // 여기서 x는 String으로 확정\nlet b = same(7);                  // 에러: String을 기대했는데 정수\n```\n\n첫 호출에서 `String`으로 못이 박히기 때문에, 두 번째 호출은 타입 불일치 오류가 납니다.",
+      "keyPoints": [
+        "클로저는 익명 함수이며, 정의된 스코프의 변수를 붙잡아 나중에 사용할 수 있다.",
+        "`unwrap_or_else`는 값이 `None`일 때만 클로저를 실행하므로, 비싼 계산을 미룰 수 있다.",
+        "클로저의 타입 표기는 대부분 생략 가능하지만, `fn` 함수는 공개 인터페이스이므로 필수다.",
+        "컴파일러는 클로저마다 매개변수·반환 타입을 단 하나로 확정하므로 서로 다른 타입으로 두 번 호출할 수 없다."
+      ],
+      "exercises": [
+        {
+          "type": "output",
+          "q": "이 코드의 출력은?",
+          "code": "fn fallback() -> i32 {\n    println!(\"기본값 계산\");\n    10\n}\n\nfn main() {\n    let v: Option<i32> = Some(3);\n    let x = v.unwrap_or_else(|| fallback());\n    println!(\"{x}\");\n}",
+          "options": [
+            "기본값 계산\n3",
+            "3",
+            "기본값 계산\n10",
+            "10"
+          ],
+          "answer": 1,
+          "explain": "`unwrap_or_else`는 `Some`일 때 클로저를 호출하지 않고 안의 값을 그대로 반환합니다. 따라서 `fallback`은 실행되지 않고 3만 출력됩니다."
+        },
+        {
+          "type": "tf",
+          "q": "`fn`으로 정의한 일반 함수도 클로저처럼 자신이 정의된 스코프의 지역 변수를 캡처해서 쓸 수 있다.",
+          "answer": false,
+          "explain": "환경 캡처는 클로저만의 능력입니다. 함수는 인자로 받거나 전역 항목이 아니면 주변 지역 변수를 사용할 수 없습니다."
+        },
+        {
+          "type": "fill",
+          "q": "클로저의 반환 타입을 명시하려면 빈칸에 무엇이 들어가야 할까요?",
+          "code": "let add_tax = |price: u32| ___ u32 {\n    price + price / 10\n};",
+          "options": [
+            ":",
+            "=>",
+            "->",
+            "as"
+          ],
+          "answer": 2,
+          "explain": "클로저의 반환 타입도 함수와 동일하게 `->`로 표기하며, 이때 본문은 중괄호로 감싸야 합니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "fn main() {\n    let echo = |x| x;\n    let a = echo(String::from(\"hi\"));\n    let b = echo(7);\n    println!(\"{a} {b}\");\n}",
+          "options": [
+            "hi 7",
+            "7 hi",
+            "컴파일 에러",
+            "런타임 패닉"
+          ],
+          "answer": 2,
+          "explain": "첫 호출에서 클로저의 매개변수 타입이 `String`으로 확정되므로, 정수를 넘기는 두 번째 호출은 타입 불일치 컴파일 에러가 납니다."
+        },
+        {
+          "type": "order",
+          "q": "환경의 `limit`을 캡처해 비교하는 프로그램이 되도록 순서를 맞추세요.",
+          "items": [
+            "fn main() {",
+            "    let limit = 5;",
+            "    let under = |n: i32| n < limit;",
+            "    println!(\"{}\", under(3));",
+            "}"
+          ],
+          "explain": "클로저는 정의 시점에 보이는 `limit`을 캡처하므로, 먼저 `limit`이 선언된 뒤에 클로저를 정의하고 호출해야 합니다. 출력은 `true`입니다."
+        },
+        {
+          "type": "match",
+          "q": "문법·개념과 설명을 연결하세요.",
+          "pairs": [
+            [
+              "|| expr",
+              "매개변수를 받지 않는 클로저"
+            ],
+            [
+              "|x| x + 1",
+              "매개변수 하나를 받는 클로저"
+            ],
+            [
+              "unwrap_or_else",
+              "None일 때만 클로저를 호출하는 Option 메서드"
+            ],
+            [
+              "|x: u32| -> u32 { .. }",
+              "매개변수와 반환 타입을 모두 명시한 클로저"
+            ]
+          ],
+          "explain": "파이프 사이가 매개변수 목록이고, 타입 표기는 선택 사항입니다."
+        },
+        {
+          "type": "mc",
+          "q": "클로저는 타입 표기를 생략할 수 있는데 `fn` 함수는 그럴 수 없는 이유로 가장 알맞은 것은?",
+          "options": [
+            "클로저는 런타임에 타입이 결정되기 때문",
+            "함수 시그니처는 외부에 공개되는 인터페이스라 타입이 명확히 고정되어야 하기 때문",
+            "클로저는 항상 제네릭으로 컴파일되기 때문",
+            "함수는 값을 반환할 수 없기 때문"
+          ],
+          "answer": 1,
+          "explain": "함수 시그니처는 사용자와의 약속이므로 타입을 명시해야 합니다. 클로저는 좁은 범위에서만 쓰이므로 컴파일러가 사용처를 보고 추론할 수 있습니다."
+        },
+        {
+          "type": "tf",
+          "q": "타입을 표기하지 않은 클로저라도, 한 번 호출되고 나면 매개변수와 반환값의 타입이 하나로 확정된다.",
+          "answer": true,
+          "explain": "컴파일러는 첫 사용처를 보고 구체 타입을 정하고 그대로 고정합니다. 클로저는 제네릭 함수가 아닙니다."
+        }
+      ]
+    },
+    {
+      "id": "ch13-2",
+      "title": "캡처 방식과 Fn 트레이트",
+      "summary": "클로저가 환경의 값을 붙잡는 방법은 세 가지이고, 이는 함수가 인자를 받는 세 가지 방식과 정확히 대응합니다. **불변 참조로 빌리기**, **가변 참조로 빌리기**, **소유권 가져가기**입니다. 어떤 방식을 쓸지는 우리가 고르는 게 아니라, 클로저 본문이 그 값으로 무엇을 하는지를 보고 컴파일러가 **가장 약한 권한**부터 선택합니다.\n\n값을 읽기만 하면 불변 참조로 충분합니다. 불변 참조는 동시에 여러 개 존재할 수 있으므로, 클로저를 정의한 뒤에도 원래 변수를 자유롭게 쓸 수 있습니다.\n\n```rust\nlet scores = vec![90, 75, 88];\nlet report = || println!(\"점수: {scores:?}\");\n\nprintln!(\"호출 전: {scores:?}\");\nreport();\nprintln!(\"호출 후: {scores:?}\");\n```\n\n본문이 값을 수정하면 가변 참조가 필요합니다. 이때는 대여 규칙이 그대로 적용됩니다. 가변 대여가 살아 있는 동안에는 다른 대여가 끼어들 수 없습니다.\n\n```rust\nlet mut scores = vec![90, 75];\nlet mut record = || scores.push(100);\n\n// 여기서 scores를 읽으면 컴파일 에러입니다.\nrecord();\nprintln!(\"{scores:?}\"); // [90, 75, 100]\n```\n\n클로저를 담은 변수 자체에도 `mut`이 필요하다는 점에 주의하세요. 가변 참조를 들고 있는 클로저를 호출하는 것은 그 클로저를 가변으로 사용하는 일이기 때문입니다.\n\n본문이 굳이 소유권을 필요로 하지 않아도, 매개변수 목록 앞에 `move`를 붙이면 **강제로 소유권을 가져가게** 만들 수 있습니다. 가장 흔한 용도는 새 스레드에 데이터를 넘길 때입니다. 메인 스레드가 먼저 끝나 값이 해제되면 새 스레드가 들고 있던 참조가 무효가 되므로, 컴파일러가 `move`를 요구합니다.\n\n```rust\nuse std::thread;\n\nlet names = vec![String::from(\"ann\"), String::from(\"bob\")];\nthread::spawn(move || println!(\"스레드에서: {names:?}\"))\n    .join()\n    .unwrap();\n```\n\n클로저가 값을 어떻게 다루는지에 따라 **Fn 트레이트**가 자동으로 구현됩니다. 세 트레이트는 포함 관계처럼 누적됩니다.\n\n- `FnOnce`: 최소 한 번은 호출할 수 있음. **모든** 클로저가 구현합니다. 캡처한 값을 본문 밖으로 이동시키는 클로저는 오직 이것만 구현합니다.\n- `FnMut`: 캡처한 값을 밖으로 옮기지는 않지만 수정할 수는 있음. 여러 번 호출 가능합니다.\n- `Fn`: 캡처한 값을 옮기지도 바꾸지도 않거나, 아예 아무것도 캡처하지 않음. 여러 번, 동시에 호출해도 안전합니다.\n\n이 구분은 클로저를 받는 쪽이 **몇 번 호출할 것인가**를 약속하는 장치입니다. `Option::unwrap_or_else`의 경계는 `FnOnce() -> T`입니다. 최대 한 번만 부르겠다는 선언이고, 모든 클로저가 `FnOnce`를 구현하니 가장 관대한 조건이 됩니다. 반대로 슬라이스의 `sort_by_key`는 원소마다 클로저를 부르므로 `FnMut`을 요구합니다.\n\n```rust\nlet mut words = vec![\"pear\", \"fig\", \"banana\"];\nwords.sort_by_key(|w| w.len()); // 캡처가 없으니 Fn, 당연히 FnMut도 만족\n```\n\n만약 `sort_by_key`에 넘긴 클로저가 캡처한 `String`을 벡터에 `push`해 버린다면, 그 클로저는 한 번밖에 호출될 수 없으므로 `FnOnce`만 구현하고 컴파일이 거부됩니다. 이럴 때는 값을 옮기는 대신 **카운터를 가변 참조로 캡처해서 증가**시키면 `FnMut` 조건을 만족합니다.\n\n참고로, 환경 캡처가 필요 없다면 클로저 대신 함수 이름을 그대로 넘겨도 됩니다. 예를 들어 `Option<Vec<i32>>` 값에 `unwrap_or_else(Vec::new)`를 쓸 수 있습니다.",
+      "keyPoints": [
+        "클로저는 본문이 하는 일에 따라 불변 참조·가변 참조·소유권 중 가장 약한 권한을 자동으로 선택한다.",
+        "`move`를 붙이면 본문이 필요로 하지 않아도 소유권을 강제로 가져가며, 스레드로 데이터를 넘길 때 주로 쓴다.",
+        "모든 클로저는 `FnOnce`를 구현하고, 값을 수정만 하면 `FnMut`, 읽기만 하거나 캡처가 없으면 `Fn`까지 구현한다.",
+        "`unwrap_or_else`는 한 번만 호출하므로 `FnOnce`, `sort_by_key`는 원소마다 호출하므로 `FnMut`을 요구한다.",
+        "캡처한 값을 클로저 밖으로 이동시키면 `FnOnce`만 구현되어 여러 번 호출하는 API에 넘길 수 없다."
+      ],
+      "exercises": [
+        {
+          "type": "output",
+          "q": "이 코드의 출력은?",
+          "code": "fn main() {\n    let nums = vec![1, 2, 3];\n    let show = || println!(\"{nums:?}\");\n    println!(\"{nums:?}\");\n    show();\n    println!(\"{nums:?}\");\n}",
+          "options": [
+            "컴파일 에러",
+            "[1, 2, 3]\n[1, 2, 3]\n[1, 2, 3]",
+            "[1, 2, 3]",
+            "[1, 2, 3]\n[1, 2, 3]"
+          ],
+          "answer": 1,
+          "explain": "클로저가 출력만 하므로 불변 참조로 캡처합니다. 불변 참조는 여러 개가 공존할 수 있어 원래 변수도 계속 쓸 수 있고, 세 줄 모두 출력됩니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "fn main() {\n    let mut nums = vec![1, 2, 3];\n    let mut add = || nums.push(4);\n    println!(\"{nums:?}\");\n    add();\n}",
+          "options": [
+            "[1, 2, 3]",
+            "[1, 2, 3, 4]",
+            "컴파일 에러",
+            "런타임 패닉"
+          ],
+          "answer": 2,
+          "explain": "클로저가 `nums`를 가변으로 대여한 상태인데, 호출 전에 `println!`이 불변 대여를 시도합니다. 가변 대여가 살아 있는 동안 다른 대여는 허용되지 않습니다."
+        },
+        {
+          "type": "fill",
+          "q": "새 스레드가 벡터를 안전하게 사용하도록 하려면 빈칸에 무엇이 필요할까요?",
+          "code": "let data = vec![1, 2, 3];\nthread::spawn(___ || println!(\"{data:?}\"))\n    .join()\n    .unwrap();",
+          "options": [
+            "mut",
+            "move",
+            "ref",
+            "copy"
+          ],
+          "answer": 1,
+          "explain": "`move`는 클로저가 캡처값의 소유권을 가져가게 합니다. 스레드가 메인보다 오래 살 수 있으므로 컴파일러가 이를 요구합니다."
+        },
+        {
+          "type": "mc",
+          "q": "`sort_by_key`가 클로저 경계로 `FnOnce`가 아니라 `FnMut`을 쓰는 이유는?",
+          "options": [
+            "정렬 결과를 클로저가 직접 수정해야 하기 때문",
+            "클로저가 반드시 소유권을 가져가야 하기 때문",
+            "슬라이스의 원소마다 클로저를 여러 번 호출하기 때문",
+            "반환 타입이 항상 `bool`이어야 하기 때문"
+          ],
+          "answer": 2,
+          "explain": "`sort_by_key`는 각 원소에 대해 키를 얻으려고 클로저를 반복 호출합니다. 한 번만 호출 가능한 `FnOnce`로는 부족합니다."
+        },
+        {
+          "type": "tf",
+          "q": "모든 클로저는 적어도 `FnOnce` 트레이트를 구현한다.",
+          "answer": true,
+          "explain": "모든 클로저는 최소한 한 번은 호출할 수 있으므로 `FnOnce`는 항상 구현됩니다. 본문이 하는 일에 따라 `FnMut`, `Fn`이 추가로 붙습니다."
+        },
+        {
+          "type": "match",
+          "q": "개념과 설명을 연결하세요.",
+          "pairs": [
+            [
+              "FnOnce",
+              "캡처값을 밖으로 옮겨서 한 번만 호출 가능한 클로저도 포함"
+            ],
+            [
+              "FnMut",
+              "캡처값을 수정하지만 여러 번 호출 가능"
+            ],
+            [
+              "Fn",
+              "캡처값을 읽기만 하거나 아무것도 캡처하지 않음"
+            ],
+            [
+              "move",
+              "본문이 필요로 하지 않아도 소유권을 가져가게 하는 키워드"
+            ]
+          ],
+          "explain": "세 Fn 트레이트는 클로저가 캡처값을 어떻게 다루느냐에 따라 누적적으로 구현됩니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 출력은?",
+          "code": "fn main() {\n    let mut words = vec![\"pear\", \"fig\", \"banana\"];\n    let mut calls = 0;\n    words.sort_by_key(|w| {\n        calls += 1;\n        w.len()\n    });\n    println!(\"{words:?}\");\n}",
+          "options": [
+            "[\"banana\", \"pear\", \"fig\"]",
+            "[\"pear\", \"fig\", \"banana\"]",
+            "컴파일 에러",
+            "[\"fig\", \"pear\", \"banana\"]"
+          ],
+          "answer": 3,
+          "explain": "클로저는 `calls`를 가변 참조로만 캡처하므로 `FnMut`을 만족해 컴파일됩니다. 길이 순으로 fig(3), pear(4), banana(6)가 됩니다."
+        },
+        {
+          "type": "mc",
+          "q": "다음 중 `FnOnce`만 구현하는 클로저는?",
+          "code": "let text = String::from(\"hello\");\nlet mut log: Vec<String> = Vec::new();\nlet mut count = 0;",
+          "options": [
+            "|| println!(\"{text}\")",
+            "|| log.push(text)",
+            "|| count += 1",
+            "|x: i32| x * 2"
+          ],
+          "answer": 1,
+          "explain": "`log.push(text)`는 캡처한 `String`의 소유권을 클로저 밖으로 옮깁니다. 두 번째 호출 때는 옮길 값이 없으므로 `FnOnce`만 구현됩니다."
+        }
+      ]
+    },
+    {
+      "id": "ch13-3",
+      "title": "이터레이터와 어댑터",
+      "summary": "이터레이터는 값의 나열을 하나씩 훑는 일을 대신해 주는 도구입니다. 인덱스 변수를 0부터 올려 가며 범위를 벗어나지 않았는지 확인하는 코드를 직접 쓰지 않아도 되고, 인덱싱이 불가능한 자료구조에도 똑같은 방식이 통합니다.\n\n러스트의 이터레이터는 **게으릅니다(lazy)**. 만들기만 해서는 아무 일도 하지 않고, 소비하는 메서드를 부를 때 비로소 움직입니다.\n\n```rust\nlet v = vec![10, 20, 30];\nlet it = v.iter(); // 아직 아무 일도 일어나지 않음\n\nfor n in it {\n    println!(\"{n}\");\n}\n```\n\n모든 이터레이터는 표준 라이브러리의 `Iterator` 트레이트를 구현합니다. 정의의 핵심은 놀랍도록 단순합니다.\n\n```rust\npub trait Iterator {\n    type Item;\n    fn next(&mut self) -> Option<Self::Item>;\n    // 기본 구현이 있는 나머지 메서드는 생략\n}\n```\n\n`Item`은 이 이터레이터가 내놓을 값의 타입이고, 직접 구현해야 하는 메서드는 `next` 하나뿐입니다. `next`는 값이 남아 있으면 `Some`으로 감싸 돌려주고, 다 떨어지면 `None`을 반환합니다.\n\n```rust\nlet v = vec![10, 20];\nlet mut it = v.iter();\n\nassert_eq!(it.next(), Some(&10));\nassert_eq!(it.next(), Some(&20));\nassert_eq!(it.next(), None);\n```\n\n여기서 두 가지를 짚고 가야 합니다. 첫째, `next`는 `&mut self`를 받으므로 변수에 `mut`이 필요합니다. 어디까지 진행했는지를 내부 상태로 들고 있기 때문입니다. `for` 루프에서 `mut`을 쓰지 않아도 됐던 것은 루프가 이터레이터의 소유권을 가져가 내부적으로 가변으로 만들기 때문입니다. 둘째, `iter()`가 내주는 값은 **불변 참조**입니다. 소유권을 가진 값이 필요하면 `into_iter()`, 원소를 수정하고 싶으면 `iter_mut()`을 씁니다.\n\n`next`를 반복해 불러서 이터레이터를 다 써 버리는 메서드를 **소비 어댑터(consuming adapter)**라고 합니다. 대표적으로 `sum`이 있고, 호출하면 이터레이터의 소유권을 가져가므로 그 뒤로는 다시 쓸 수 없습니다.\n\n```rust\nlet v = vec![4, 5, 6];\nlet total: i32 = v.iter().sum(); // 15\n```\n\n반대로 이터레이터를 소비하지 않고 **다른 이터레이터를 만들어 내는** 메서드를 이터레이터 어댑터라고 합니다. `map`은 각 원소에 클로저를 적용한 새 이터레이터를, `filter`는 클로저가 `true`를 돌려준 원소만 남긴 새 이터레이터를 만듭니다. 어댑터도 게으르므로, 마지막에 `collect` 같은 소비 어댑터로 마무리하지 않으면 클로저는 한 번도 실행되지 않고 경고만 뜹니다.\n\n```rust\nlet v = vec![1, 2, 3, 4];\nlet doubled: Vec<i32> = v.iter().map(|x| x * 2).collect();\nassert_eq!(doubled, vec![2, 4, 6, 8]);\n```\n\n어댑터에 넘기는 클로저는 **환경을 캡처**할 수 있다는 점이 특히 유용합니다. 함수 포인터로는 불가능한, 바깥 변수에 의존하는 조건을 자연스럽게 표현할 수 있습니다.\n\n```rust\nfn cheaper_than(items: Vec<u32>, budget: u32) -> Vec<u32> {\n    items.into_iter().filter(|p| *p <= budget).collect()\n}\n```\n\n`into_iter`로 소유권을 가져온 뒤 `filter`가 `budget`을 캡처해 비교하고, `collect`가 결과를 새 벡터로 모읍니다. 반복 로직은 표준 라이브러리가 제공하고, 달라지는 부분만 클로저로 끼워 넣는 구조입니다.",
+      "keyPoints": [
+        "이터레이터는 게을러서 소비하는 메서드를 부르기 전까지는 아무 일도 하지 않는다.",
+        "`Iterator` 트레이트는 `Item` 연관 타입과 `next` 메서드만 요구하며, `next`는 끝나면 `None`을 반환한다.",
+        "`iter`는 불변 참조, `into_iter`는 소유값, `iter_mut`은 가변 참조를 내놓는다.",
+        "`sum`·`collect`는 이터레이터를 소비하고, `map`·`filter`는 새 이터레이터를 만드는 어댑터다.",
+        "어댑터에 넘기는 클로저는 환경 변수를 캡처할 수 있어 조건을 유연하게 바꿀 수 있다."
+      ],
+      "exercises": [
+        {
+          "type": "tf",
+          "q": "`v.iter().map(|x| x + 1);` 한 줄만 실행하면 클로저가 각 원소에 대해 실행된다.",
+          "answer": false,
+          "explain": "이터레이터 어댑터는 게으릅니다. `collect`나 `sum` 같은 소비 어댑터를 부르기 전까지 클로저는 호출되지 않고, 컴파일러는 미사용 경고를 냅니다."
+        },
+        {
+          "type": "fill",
+          "q": "`next`를 직접 호출하려면 빈칸에 무엇이 들어가야 할까요?",
+          "code": "let v = vec![10, 20];\nlet ___ = v.iter();\nassert_eq!(it.next(), Some(&10));",
+          "options": [
+            "it",
+            "mut it",
+            "&it",
+            "ref it"
+          ],
+          "answer": 1,
+          "explain": "`next`의 시그니처는 `fn next(&mut self)`이므로 이터레이터 변수가 가변이어야 합니다."
+        },
+        {
+          "type": "mc",
+          "q": "벡터의 원소를 그 자리에서 수정하면서 순회하려면 어떤 메서드를 써야 할까요?",
+          "options": [
+            "iter()",
+            "into_iter()",
+            "iter_mut()",
+            "collect()"
+          ],
+          "answer": 2,
+          "explain": "`iter`는 불변 참조, `into_iter`는 소유값, `iter_mut`은 가변 참조를 내놓습니다. 제자리 수정에는 `iter_mut`이 필요합니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 출력은?",
+          "code": "fn main() {\n    let v = vec![4, 5, 6];\n    let total: i32 = v.iter().sum();\n    println!(\"{total}\");\n}",
+          "options": [
+            "6",
+            "15",
+            "컴파일 에러",
+            "0"
+          ],
+          "answer": 1,
+          "explain": "`sum`은 소비 어댑터로 `next`를 반복 호출하며 값을 더합니다. 4 + 5 + 6 = 15입니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 출력은?",
+          "code": "fn main() {\n    let limit = 3;\n    let nums = vec![1, 2, 3, 4, 5];\n    let big: Vec<i32> = nums.into_iter().filter(|n| *n > limit).collect();\n    println!(\"{big:?}\");\n}",
+          "options": [
+            "[1, 2, 3]",
+            "[3, 4, 5]",
+            "[]",
+            "[4, 5]"
+          ],
+          "answer": 3,
+          "explain": "`filter`의 클로저가 환경의 `limit`을 캡처해 3보다 큰 값만 남기고, `collect`가 새 벡터로 모읍니다."
+        },
+        {
+          "type": "order",
+          "q": "길이가 3보다 긴 이름만 모으는 코드가 되도록 순서를 맞추세요.",
+          "items": [
+            "let names = vec![\"ann\", \"bob\", \"carol\"];",
+            "let long: Vec<&str> = names",
+            "    .into_iter()",
+            "    .filter(|n| n.len() > 3)",
+            "    .collect();"
+          ],
+          "explain": "소유권을 가져오는 이터레이터를 만들고, 조건으로 걸러낸 뒤, 마지막에 `collect`로 소비해야 실제 값이 만들어집니다."
+        },
+        {
+          "type": "match",
+          "q": "메서드와 분류·역할을 연결하세요.",
+          "pairs": [
+            [
+              "next",
+              "다음 값을 Some으로, 끝나면 None을 반환"
+            ],
+            [
+              "sum",
+              "이터레이터를 소비해 합계를 반환"
+            ],
+            [
+              "map",
+              "각 원소를 변환한 새 이터레이터를 반환"
+            ],
+            [
+              "collect",
+              "결과를 컬렉션으로 모으는 소비 어댑터"
+            ]
+          ],
+          "explain": "`next`를 호출해 이터레이터를 다 써 버리면 소비 어댑터, 새 이터레이터를 돌려주면 이터레이터 어댑터입니다."
+        },
+        {
+          "type": "mc",
+          "q": "`Iterator` 트레이트를 직접 구현할 때 반드시 정의해야 하는 것은?",
+          "options": [
+            "`Item` 연관 타입과 `next` 메서드",
+            "`map`과 `filter` 메서드",
+            "`collect` 메서드",
+            "`len`과 `next` 메서드"
+          ],
+          "answer": 0,
+          "explain": "`next`만 구현하면 나머지 어댑터 메서드들은 기본 구현으로 따라옵니다. `Item`은 내놓을 값의 타입을 정하는 연관 타입입니다."
+        }
+      ]
+    },
+    {
+      "id": "ch13-4",
+      "title": "minigrep 개선과 루프 vs 이터레이터",
+      "summary": "12장의 minigrep에는 찜찜한 부분이 남아 있었습니다. `Config::build`가 `&[String]` 슬라이스를 빌려 쓰기만 하다 보니, 소유권이 필요한 필드를 채우려고 `clone`을 호출해야 했습니다.\n\n```rust\n// 개선 전\nfn build(args: &[String]) -> Result<Config, &'static str> {\n    if args.len() < 3 {\n        return Err(\"인자가 부족합니다\");\n    }\n    let query = args[1].clone();\n    let file_path = args[2].clone();\n    // ...\n}\n```\n\n`env::args()`는 사실 벡터가 아니라 **이터레이터**를 반환합니다. 그러니 `collect()`로 굳이 벡터를 만들었다가 슬라이스를 빌려줄 이유가 없습니다. 이터레이터를 통째로 넘겨 소유권까지 함께 건네면 됩니다.\n\n```rust\nlet config = Config::build(env::args()).unwrap_or_else(|err| {\n    eprintln!(\"인자 파싱 실패: {err}\");\n    process::exit(1);\n});\n```\n\n받는 쪽 시그니처는 `impl Trait` 문법으로 바꿉니다. \"`Iterator`를 구현하고 `String`을 내놓는 아무 타입\"이라는 뜻이며, 순회하면서 상태가 바뀌므로 `mut`을 붙입니다.\n\n```rust\nfn build(\n    mut args: impl Iterator<Item = String>,\n) -> Result<Config, &'static str> {\n```\n\n이제 본문에서 인덱싱 대신 `next`를 씁니다. `env::args()`의 첫 값은 프로그램 이름이므로 한 번 버리고 시작합니다. 값이 없으면 `None`이 오니, 길이를 세는 코드 없이도 부족한 인자를 자연스럽게 걸러낼 수 있습니다.\n\n```rust\nargs.next(); // 프로그램 이름 버리기\n\nlet query = match args.next() {\n    Some(arg) => arg,\n    None => return Err(\"검색어가 없습니다\"),\n};\n```\n\n`next`가 돌려주는 `String`은 소유값이므로 그대로 `Config`에 넣을 수 있고, `clone` 호출과 그에 따른 메모리 할당이 사라집니다.\n\n검색 함수도 어댑터로 다듬을 수 있습니다. 원래는 빈 벡터를 만들고 루프를 돌며 `push`했지만, `filter`와 `collect` 조합이면 가변 중간 상태 없이 같은 일을 합니다. 가변 상태가 줄면 읽기도 쉽고, 나중에 병렬화 같은 변경도 수월해집니다.\n\n```rust\npub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {\n    contents\n        .lines()\n        .filter(|line| line.contains(query))\n        .collect()\n}\n```\n\n한 걸음 더 나가면 `collect`를 빼고 반환 타입을 `impl Iterator<Item = &'a str>`로 바꿔 함수 자체를 어댑터로 만들 수 있습니다. 그러면 모든 결과를 다 모은 뒤에 출력하는 대신, 일치하는 줄이 발견될 때마다 곧바로 출력됩니다. 게으름이 그대로 이득이 되는 경우입니다.\n\n그렇다면 손으로 쓴 `for` 루프와 이터레이터 중 무엇이 빠를까요? 직관적으로는 저수준 루프가 빠를 것 같지만, 큰 텍스트에서 단어를 찾는 벤치마크를 돌려 보면 두 방식의 시간은 거의 같습니다. 이터레이터는 러스트의 **무비용 추상화(zero-cost abstraction)** 중 하나여서, 추상화를 쓴다고 런타임 비용이 추가로 붙지 않습니다. 컴파일러는 루프 펼치기나 경계 검사 제거 같은 최적화를 적용해 직접 손으로 쓴 코드와 거의 같은 기계어를 만들어 냅니다. 따라서 성능 걱정 없이 읽기 좋은 쪽을 고르면 되고, 많은 러스트 개발자들이 이터레이터 스타일을 선호합니다.",
+      "keyPoints": [
+        "`env::args()`는 벡터가 아니라 이터레이터를 반환하므로 그대로 넘겨 소유권을 건넬 수 있다.",
+        "`impl Iterator<Item = String>` 매개변수로 바꾸면 인덱싱과 `clone` 없이 값을 옮겨 담을 수 있다.",
+        "`next()`의 첫 결과는 프로그램 이름이며, `None`을 이용해 인자 부족을 자연스럽게 처리한다.",
+        "`filter` + `collect` 조합은 가변 중간 벡터 없이 검색 로직을 표현한다.",
+        "이터레이터는 무비용 추상화여서 직접 작성한 루프와 성능이 사실상 같다."
+      ],
+      "exercises": [
+        {
+          "type": "fill",
+          "q": "이터레이터를 인자로 받도록 시그니처를 바꾸려면 빈칸에 무엇이 들어가야 할까요?",
+          "code": "fn build(\n    mut args: impl ___<Item = String>,\n) -> Result<Config, &'static str> {",
+          "options": [
+            "Iterator",
+            "IntoIterator",
+            "Iter",
+            "Vec"
+          ],
+          "answer": 0,
+          "explain": "`impl Iterator<Item = String>`은 `String`을 내놓는 `Iterator` 구현체라면 무엇이든 받겠다는 뜻입니다."
+        },
+        {
+          "type": "tf",
+          "q": "`env::args()`는 `Vec<String>`을 반환하므로 인덱싱으로 바로 접근할 수 있다.",
+          "answer": false,
+          "explain": "`env::args()`는 `std::env::Args` 이터레이터를 반환합니다. 벡터로 쓰려면 `collect()`를 따로 호출해야 합니다."
+        },
+        {
+          "type": "mc",
+          "q": "`Config::build`를 이터레이터를 받도록 고치면 `clone` 호출을 없앨 수 있는 이유는?",
+          "options": [
+            "이터레이터가 값을 내부적으로 복사해 주기 때문",
+            "슬라이스와 달리 이터레이터의 소유권을 넘겨받아 `next`가 내놓는 소유값을 그대로 옮길 수 있기 때문",
+            "`impl Trait`을 쓰면 컴파일러가 자동으로 `Copy`를 구현하기 때문",
+            "`&'static str` 반환 타입 덕분에 수명이 늘어나기 때문"
+          ],
+          "answer": 1,
+          "explain": "슬라이스는 빌린 값이라 소유가 필요하면 복제해야 했습니다. 이터레이터를 통째로 받으면 `next`가 소유권 있는 `String`을 내주므로 그대로 이동시키면 됩니다."
+        },
+        {
+          "type": "output",
+          "q": "`cargo run -- rust poem.txt`로 실행할 때, 아래 코드에서 `query`에 담기는 값은?",
+          "code": "let mut args = env::args();\nargs.next();\nlet query = match args.next() {\n    Some(arg) => arg,\n    None => return Err(\"검색어가 없습니다\"),\n};",
+          "options": [
+            "프로그램 실행 파일 경로",
+            "poem.txt",
+            "rust",
+            "None"
+          ],
+          "answer": 2,
+          "explain": "첫 `next()`가 프로그램 이름을 소비하고 버리므로, 두 번째 `next()`가 첫 번째 사용자 인자인 `rust`를 돌려줍니다."
+        },
+        {
+          "type": "order",
+          "q": "어댑터로 작성한 검색 함수가 되도록 순서를 맞추세요.",
+          "items": [
+            "fn find<'a>(needle: &str, text: &'a str) -> Vec<&'a str> {",
+            "    text.lines()",
+            "        .filter(|line| line.contains(needle))",
+            "        .collect()",
+            "}"
+          ],
+          "explain": "`lines()`로 줄 단위 이터레이터를 만들고, `filter`로 조건에 맞는 줄만 남긴 뒤, `collect`로 벡터에 모읍니다."
+        },
+        {
+          "type": "mc",
+          "q": "`search`의 반환 타입을 `Vec<&'a str>`에서 `impl Iterator<Item = &'a str>`로 바꾸면 무엇이 달라질까요?",
+          "options": [
+            "검색 결과가 자동으로 정렬된다",
+            "결과를 모두 모은 뒤에 한꺼번에 출력된다",
+            "일치하는 줄을 찾을 때마다 바로 처리·출력할 수 있다",
+            "컴파일 시간이 늘고 런타임도 느려진다"
+          ],
+          "answer": 2,
+          "explain": "`collect`를 제거하면 게으름이 유지되어 호출부의 `for` 루프가 일치하는 줄을 찾는 즉시 처리할 수 있습니다."
+        },
+        {
+          "type": "tf",
+          "q": "이터레이터는 고수준 추상화이므로 직접 작성한 `for` 루프보다 항상 눈에 띄게 느리다.",
+          "answer": false,
+          "explain": "벤치마크상 두 방식은 성능이 사실상 같습니다. 이터레이터는 무비용 추상화로, 컴파일러가 손으로 쓴 것과 거의 같은 코드로 최적화합니다."
+        },
+        {
+          "type": "match",
+          "q": "개념과 설명을 연결하세요.",
+          "pairs": [
+            [
+              "impl Iterator<Item = String>",
+              "String을 내놓는 이터레이터라면 무엇이든 받는 매개변수 타입"
+            ],
+            [
+              "args.next()",
+              "인덱싱 대신 값을 하나씩 꺼내며 소유권을 넘겨받는 호출"
+            ],
+            [
+              "filter + collect",
+              "가변 중간 벡터 없이 조건에 맞는 값만 모으는 조합"
+            ],
+            [
+              "무비용 추상화",
+              "추상화를 써도 런타임 비용이 추가되지 않는 성질"
+            ]
+          ],
+          "explain": "이터레이터 기반 설계는 코드를 짧게 만들면서도 성능 손해를 주지 않습니다."
+        }
+      ]
+    }
+  ]
+}

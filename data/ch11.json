@@ -1,0 +1,388 @@
+{
+  "id": "ch11",
+  "number": 11,
+  "title": "자동화된 테스트 작성하기",
+  "titleEn": "Writing Automated Tests",
+  "emoji": "🧪",
+  "pages": "263-298",
+  "intro": "타입 시스템과 소유권 규칙이 많은 버그를 막아주지만, 코드가 '의도한 대로 동작하는지'까지 보장해 주지는 못합니다. 이 챕터에서는 `#[test]` 함수와 단언 매크로로 테스트를 작성하고, `cargo test`의 실행 방식을 옵션으로 조절하며, 단위 테스트와 통합 테스트를 어떻게 배치하는지 배웁니다.",
+  "lessons": [
+    {
+      "id": "ch11-1",
+      "title": "테스트 함수 만들기와 cargo test 읽기",
+      "summary": "Rust에서 테스트는 특별한 문법이 아니라 그냥 **함수**입니다. 함수 정의 바로 윗줄에 `#[test]` 속성만 붙이면 됩니다. 속성(attribute)은 코드에 붙이는 메타데이터로, 구조체에 `#[derive(Debug)]`를 붙였던 것과 같은 종류입니다.\n\n`cargo test`를 실행하면 Cargo는 테스트 전용 바이너리를 따로 빌드합니다. 이 바이너리는 `#[test]`가 붙은 함수만 찾아 실행하고 각각의 결과를 보고합니다. 테스트 모듈 안에 도우미 함수가 섞여 있어도 되는 이유가 여기 있습니다. 속성이 없으면 그냥 평범한 함수일 뿐이니까요.\n\n테스트 함수 본문은 보통 세 단계를 따릅니다. 필요한 데이터나 상태를 준비하고, 검사하려는 코드를 호출하고, 결과가 기대와 같은지 단언(assert)합니다.\n\n**테스트가 실패하는 조건은 단 하나, 패닉입니다.** 각 테스트는 별도의 스레드에서 돌고, 메인 스레드는 그 스레드가 죽은 것을 보고 실패로 기록합니다. 그래서 `panic!`을 직접 부르든, 인덱스 범위를 벗어나든, 단언 매크로가 내부에서 패닉을 일으키든 결과는 모두 '실패'로 같습니다.\n\n가장 기본적인 단언 도구는 `assert!` 매크로입니다. 인자로 받은 불리언 표현식이 `true`면 아무 일도 없고, `false`면 `panic!`을 호출해 테스트를 실패시킵니다.\n\n```rust\npub struct Tank {\n    capacity: u32,\n}\n\nimpl Tank {\n    pub fn fits(&self, amount: u32) -> bool {\n        amount <= self.capacity\n    }\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn small_amount_fits() {\n        let tank = Tank { capacity: 50 };\n        assert!(tank.fits(20));\n    }\n\n    #[test]\n    fn overflow_does_not_fit() {\n        let tank = Tank { capacity: 50 };\n        assert!(!tank.fits(80));\n    }\n}\n```\n\n두 번째 테스트처럼 '거짓이어야 정상'인 조건은 `!`로 뒤집어서 `assert!`에 넘깁니다.\n\n출력 요약 줄은 읽는 법을 알아 두면 편합니다. `2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`에서 `ignored`는 `#[ignore]`로 건너뛴 개수, `filtered out`은 이름 필터에 걸러진 개수, `measured`는 나이틀리 전용 벤치마크 개수입니다. 실패가 있으면 개별 결과와 요약 사이에 실패 원인을 자세히 보여주는 구역과, 실패한 테스트 이름만 모아 놓은 구역이 추가로 나타납니다.",
+      "keyPoints": [
+        "`#[test]`를 함수 위에 붙이면 `cargo test`가 그 함수를 테스트로 인식해 실행한다.",
+        "테스트는 오직 패닉이 발생했을 때만 실패하며, 각 테스트는 별도 스레드에서 실행된다.",
+        "`assert!`는 인자가 `false`일 때 `panic!`을 호출해 테스트를 실패시킨다.",
+        "거짓이어야 정상인 조건은 `!`로 부정해서 `assert!`에 넘긴다.",
+        "요약 줄의 passed/failed/ignored/filtered out은 각각 통과·실패·무시·필터 제외 개수를 뜻한다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "`cargo test`가 어떤 함수를 테스트로 취급하는 기준은 무엇인가요?",
+          "options": [
+            "함수 이름이 `test_`로 시작하는 것",
+            "함수 정의 앞에 `#[test]` 속성이 붙어 있는 것",
+            "`mod tests` 모듈 안에 있는 모든 함수",
+            "반환 타입이 `bool`인 모든 함수"
+          ],
+          "answer": 1,
+          "explain": "이름이나 위치가 아니라 `#[test]` 속성이 기준입니다. 그래서 테스트 모듈 안에 속성이 없는 도우미 함수를 자유롭게 둘 수 있습니다."
+        },
+        {
+          "type": "tf",
+          "q": "테스트 함수 안에서 패닉이 발생하면 그 테스트는 실패로 기록된다.",
+          "answer": true,
+          "explain": "테스트는 각자 별도 스레드에서 실행되고, 스레드가 패닉으로 종료되면 메인 스레드가 그것을 실패로 표시합니다."
+        },
+        {
+          "type": "fill",
+          "q": "`is_empty()`가 `false`여야 통과하는 테스트입니다. 빈칸에 들어갈 것은?",
+          "code": "#[test]\nfn cart_has_items() {\n    let cart = vec![\"apple\", \"pear\"];\n    assert!(___);\n}",
+          "options": [
+            "cart.is_empty()",
+            "!cart.is_empty()",
+            "cart.is_empty() == cart.len()",
+            "assert_eq!(cart.is_empty())"
+          ],
+          "answer": 1,
+          "explain": "`assert!`는 인자가 `true`여야 통과합니다. `is_empty()`가 `false`이길 원하므로 `!`로 뒤집어야 합니다."
+        },
+        {
+          "type": "output",
+          "q": "이 테스트를 `cargo test`로 실행하면 어떻게 되나요?",
+          "code": "fn half(n: i32) -> i32 {\n    n / 2\n}\n\n#[test]\nfn half_of_seven_is_four() {\n    assert!(half(7) == 4);\n}",
+          "options": [
+            "통과한다",
+            "컴파일 에러가 난다",
+            "실패하고 `assertion failed: half(7) == 4` 메시지가 나온다",
+            "무시(ignored)된다"
+          ],
+          "answer": 2,
+          "explain": "정수 나눗셈이라 `7 / 2`는 3입니다. 조건이 `false`가 되어 `assert!`가 패닉하고, 메시지에는 표현식만 나올 뿐 실제 값 3은 보이지 않습니다."
+        },
+        {
+          "type": "order",
+          "q": "가장 단순한 테스트 모듈을 올바른 순서로 배열하세요.",
+          "items": [
+            "#[cfg(test)]",
+            "mod tests {",
+            "    #[test]",
+            "    fn it_works() {",
+            "        assert!(1 + 1 == 2);"
+          ],
+          "explain": "`#[cfg(test)]`는 모듈 선언 바로 앞에, `#[test]`는 함수 선언 바로 앞에 옵니다. 속성은 항상 꾸미려는 대상 직전 줄에 놓습니다."
+        },
+        {
+          "type": "match",
+          "q": "`cargo test` 요약 줄의 항목과 그 의미를 연결하세요.",
+          "pairs": [
+            ["passed", "성공한 테스트 개수"],
+            ["failed", "패닉으로 실패한 테스트 개수"],
+            ["ignored", "`#[ignore]`가 붙어 건너뛴 개수"],
+            ["filtered out", "이름 필터에 걸려 실행되지 않은 개수"]
+          ],
+          "explain": "요약 줄만 읽어도 무엇이 실행되지 않았는지 구분할 수 있습니다. 건너뛴 이유가 속성인지 필터인지가 핵심 차이입니다."
+        },
+        {
+          "type": "mc",
+          "q": "`cargo new my_lib --lib`로 라이브러리를 만들면 `src/lib.rs`에 기본으로 들어 있는 것은?",
+          "options": [
+            "아무것도 없는 빈 파일",
+            "`main` 함수와 `println!` 한 줄",
+            "예제 함수 하나와 `#[cfg(test)] mod tests` 안의 테스트 하나",
+            "`tests/` 디렉터리와 통합 테스트 파일"
+          ],
+          "answer": 2,
+          "explain": "Cargo가 예제 함수와 그것을 검사하는 테스트 모듈을 미리 만들어 줍니다. 매번 테스트 구조를 찾아보지 않아도 되도록 하는 템플릿입니다."
+        }
+      ]
+    },
+    {
+      "id": "ch11-2",
+      "title": "단언 매크로: assert_eq!, should_panic, Result",
+      "summary": "`assert!`로도 동등성을 검사할 수 있지만(`assert!(a == b)`), 실패했을 때 '조건이 거짓이다'라는 사실만 알려줄 뿐 실제 값을 보여주지 않습니다. 그래서 표준 라이브러리는 `assert_eq!`와 `assert_ne!`를 따로 제공합니다. 이 매크로들은 실패 시 두 값을 **모두 출력**하므로 디버깅이 훨씬 빠릅니다.\n\n```rust\npub fn to_slug(title: &str) -> String {\n    title.trim().to_lowercase().replace(' ', \"-\")\n}\n\n#[test]\nfn spaces_become_hyphens() {\n    assert_eq!(to_slug(\" Hello World \"), \"hello-world\");\n}\n```\n\n실패하면 `assertion `left == right` failed` 아래에 `left:`와 `right:` 값이 나란히 찍힙니다. 다른 언어의 테스트 프레임워크와 달리 Rust는 인자를 expected/actual로 구분하지 않고 단순히 left/right라고 부르므로, **기대값과 실제값을 어느 쪽에 써도 결과는 같습니다.**\n\n내부적으로 이 매크로들은 `==`와 `!=` 연산자를 쓰고, 실패 시 값을 디버그 형식으로 출력합니다. 따라서 비교 대상 타입은 `PartialEq`와 `Debug`를 **둘 다** 구현해야 합니다. 기본 타입과 표준 라이브러리 타입은 대부분 이미 구현되어 있지만, 직접 정의한 구조체나 열거형은 `#[derive(PartialEq, Debug)]`를 붙여 주어야 합니다. 하나라도 빠지면 런타임 실패가 아니라 **컴파일 에러**가 납니다.\n\n세 단언 매크로 모두 필수 인자 뒤에 추가 인자를 받을 수 있습니다. 이 인자들은 `format!` 매크로로 넘어가므로 `{}` 자리표시자를 써서 맞춤 실패 메시지를 만들 수 있습니다.\n\n```rust\n#[test]\nfn slug_keeps_word() {\n    let got = to_slug(\"Rust Book\");\n    assert!(\n        got.contains(\"rust\"),\n        \"슬러그에 'rust'가 없습니다. 실제 값: `{got}`\"\n    );\n}\n```\n\n반환값뿐 아니라 **에러 상황에서 제대로 패닉하는지**도 검증 대상입니다. 함수 위에 `#[should_panic]`을 붙이면 본문이 패닉해야 통과하고, 패닉하지 않으면 실패합니다. 다만 이것만으로는 엉뚱한 이유로 패닉해도 통과해 버립니다. `#[should_panic(expected = \"...\")]`처럼 문자열을 지정하면 실제 패닉 메시지가 그 문자열을 **부분 문자열로 포함해야** 통과하므로 훨씬 정밀해집니다.\n\n마지막으로 테스트 함수가 `Result<T, E>`를 반환하게 만들 수도 있습니다. `Ok(())`를 돌려주면 통과, `Err`를 돌려주면 실패입니다. 이렇게 하면 본문에서 `?` 연산자를 쓸 수 있어, 중간 연산 중 하나라도 `Err`면 바로 실패하는 테스트를 간결하게 쓸 수 있습니다. 단, `Result`를 반환하는 테스트에는 `#[should_panic]`을 함께 쓸 수 없습니다. 어떤 연산이 `Err`를 내는지 확인하려면 `?`를 붙이지 말고 `assert!(value.is_err())`로 검사하세요.",
+      "keyPoints": [
+        "`assert_eq!`/`assert_ne!`는 실패 시 left와 right 값을 모두 출력해 원인 파악이 쉽다.",
+        "비교 대상 타입은 `PartialEq`와 `Debug`를 모두 구현해야 하며, 보통 `#[derive(PartialEq, Debug)]`로 해결한다.",
+        "단언 매크로의 추가 인자는 `format!`으로 전달되어 맞춤 실패 메시지가 된다.",
+        "`#[should_panic(expected = \"...\")]`은 패닉 메시지가 해당 문자열을 포함할 때만 통과한다.",
+        "`Result<(), E>`를 반환하는 테스트는 `?`를 쓸 수 있지만 `#[should_panic]`과 함께 쓸 수 없다."
+      ],
+      "exercises": [
+        {
+          "type": "output",
+          "q": "이 코드를 `cargo test`로 실행하면 어떻게 되나요?",
+          "code": "#[derive(PartialEq)]\nstruct Point {\n    x: i32,\n}\n\n#[test]\nfn same_point() {\n    assert_eq!(Point { x: 1 }, Point { x: 1 });\n}",
+          "options": [
+            "통과한다",
+            "컴파일 에러가 난다",
+            "실패하고 left/right 값이 출력된다",
+            "경고만 나오고 통과한다"
+          ],
+          "answer": 1,
+          "explain": "`assert_eq!`는 실패 시 값을 디버그 형식으로 찍어야 하므로 `Debug`도 필요합니다. `PartialEq`만 있으면 컴파일 단계에서 막힙니다."
+        },
+        {
+          "type": "tf",
+          "q": "`assert_eq!(4, result)`와 `assert_eq!(result, 4)`는 실패 메시지의 내용상 의미가 서로 달라, 기대값을 반드시 왼쪽에 써야 한다.",
+          "answer": false,
+          "explain": "Rust는 두 인자를 expected/actual이 아니라 left/right로만 부릅니다. 순서를 바꿔도 동일한 형식의 실패 메시지가 나옵니다."
+        },
+        {
+          "type": "fill",
+          "q": "값이 100을 넘을 때만 나는 패닉을 정확히 검증하려고 합니다. 빈칸에 들어갈 것은?",
+          "code": "#[test]\n#[should_panic(___ = \"1 이상 100 이하\")]\nfn rejects_too_large() {\n    Score::new(500);\n}",
+          "options": ["message", "expected", "contains", "panic"],
+          "answer": 1,
+          "explain": "`expected` 매개변수에 넣은 문자열이 실제 패닉 메시지의 부분 문자열이어야 테스트가 통과합니다."
+        },
+        {
+          "type": "mc",
+          "q": "`Result<(), String>`을 반환하는 테스트에 대해 옳은 설명은?",
+          "options": [
+            "`Err`를 반환하면 통과하고 `Ok(())`를 반환하면 실패한다",
+            "`#[should_panic]`과 함께 쓰면 패닉과 `Err`를 동시에 검증할 수 있다",
+            "본문에서 `?` 연산자를 쓸 수 있고, `Err`가 반환되면 테스트가 실패한다",
+            "`#[test]` 대신 `#[result_test]` 속성을 붙여야 한다"
+          ],
+          "answer": 2,
+          "explain": "`Ok(())`는 통과, `Err`는 실패입니다. `?`를 쓸 수 있는 것이 가장 큰 장점이지만 `#[should_panic]`과는 함께 쓸 수 없습니다."
+        },
+        {
+          "type": "output",
+          "q": "이 테스트의 결과는?",
+          "code": "fn shout(s: &str) -> String {\n    s.to_uppercase()\n}\n\n#[test]\nfn output_differs_from_input() {\n    assert_ne!(shout(\"hi\"), String::from(\"hi\"));\n}",
+          "options": ["통과한다", "실패한다", "컴파일 에러가 난다", "패닉하지만 통과로 기록된다"],
+          "answer": 0,
+          "explain": "`shout(\"hi\")`는 `\"HI\"`라서 `\"hi\"`와 다릅니다. `assert_ne!`는 두 값이 다를 때 통과합니다."
+        },
+        {
+          "type": "match",
+          "q": "각 도구와 쓰임새를 연결하세요.",
+          "pairs": [
+            ["assert!", "불리언 조건이 참인지 검사"],
+            ["assert_eq!", "두 값이 같은지 검사하고 실패 시 양쪽 값 출력"],
+            ["assert_ne!", "값이 무엇이든 특정 값과는 달라야 함을 검사"],
+            ["#[should_panic]", "본문이 패닉해야 통과함을 검사"]
+          ],
+          "explain": "정확한 기대값을 모르지만 '적어도 이 값은 아니어야 한다'를 알 때가 `assert_ne!`의 전형적인 용도입니다."
+        },
+        {
+          "type": "order",
+          "q": "맞춤 실패 메시지가 붙은 단언을 올바른 순서로 배열하세요.",
+          "items": [
+            "#[test]",
+            "fn greeting_has_name() {",
+            "    let got = greeting(\"Mina\");",
+            "    assert!(got.contains(\"Mina\"), \"이름이 없습니다: `{got}`\");",
+            "}"
+          ],
+          "explain": "필수 인자(조건) 뒤에 오는 값들은 `format!`으로 전달되므로, 자리표시자가 들어간 문자열을 그대로 쓸 수 있습니다."
+        },
+        {
+          "type": "tf",
+          "q": "`expected` 없이 `#[should_panic]`만 붙이면, 의도한 것과 전혀 다른 원인으로 패닉해도 테스트가 통과한다.",
+          "answer": true,
+          "explain": "속성만으로는 '패닉했다'는 사실만 확인합니다. 그래서 `expected`로 메시지 일부를 지정해 정밀도를 높이는 것이 좋습니다."
+        }
+      ]
+    },
+    {
+      "id": "ch11-3",
+      "title": "테스트 실행 방식 제어하기",
+      "summary": "`cargo run`이 코드를 컴파일한 뒤 결과 바이너리를 실행하듯, `cargo test`는 코드를 테스트 모드로 컴파일한 뒤 테스트 바이너리를 실행합니다. 이 바이너리의 기본 동작은 두 가지입니다. **모든 테스트를 병렬로 실행**하고, 테스트 중 발생한 표준 출력을 **가로채서 숨깁니다.**\n\n옵션은 두 갈래로 나뉩니다. `cargo test` 자체에 주는 옵션과 테스트 바이너리에 주는 옵션입니다. 둘을 구분하는 것이 `--` 구분자입니다. 구분자 앞은 Cargo가, 뒤는 테스트 바이너리가 해석합니다. 각각 `cargo test --help`와 `cargo test -- --help`로 목록을 볼 수 있습니다.\n\n병렬 실행은 빠르지만 함정이 있습니다. 여러 테스트가 같은 파일, 같은 환경 변수, 같은 작업 디렉터리를 공유하면 서로 간섭해서, 코드는 멀쩡한데 테스트만 실패하는 상황이 생깁니다. 가장 좋은 해결책은 각 테스트가 서로 다른 자원을 쓰게 만드는 것이고, 그게 어렵다면 스레드 수를 1로 줄여 순차 실행할 수 있습니다.\n\n```text\ncargo test -- --test-threads=1\n```\n\n출력 가로채기도 알아둘 만합니다. 통과한 테스트의 `println!` 출력은 화면에 나오지 않고, 실패한 테스트의 출력만 실패 보고 안에 함께 표시됩니다. 통과한 테스트의 출력까지 보고 싶다면 `cargo test -- --show-output`을 씁니다.\n\n테스트 스위트가 커지면 일부만 돌리고 싶어집니다. `cargo test` 뒤에 문자열을 하나 주면, **이름에 그 문자열이 포함된** 테스트만 실행됩니다. 완전히 일치할 필요가 없어서 `cargo test parse`는 `parse_empty`, `parse_number`를 모두 잡아냅니다. 테스트가 속한 모듈 이름도 테스트 이름의 일부이므로, 모듈 이름으로 필터링하면 그 모듈 전체를 돌릴 수 있습니다. 주의할 점은 이름 인자를 **여러 개 나열할 수 없다는 것**입니다. 첫 번째 값만 사용됩니다.\n\n실행에 오래 걸리는 테스트는 아예 평소 실행에서 빼 두는 편이 낫습니다. `#[test]` 아래에 `#[ignore]`를 붙이면 평소에는 `ignored`로 표시되며 건너뜁니다.\n\n```rust\n#[test]\n#[ignore]\nfn full_index_rebuild() {\n    // 수 분이 걸리는 작업\n}\n```\n\n무시된 테스트만 따로 돌리려면 `cargo test -- --ignored`, 무시된 것까지 전부 돌리려면 `cargo test -- --include-ignored`를 씁니다. 두 옵션의 차이를 헷갈리지 마세요. 앞쪽은 무시된 것'만', 뒤쪽은 '전부'입니다.",
+      "keyPoints": [
+        "`--` 앞의 옵션은 `cargo test`가, 뒤의 옵션은 테스트 바이너리가 해석한다.",
+        "테스트는 기본적으로 병렬 실행되므로 공유 자원에 의존하면 서로 간섭할 수 있다.",
+        "`--test-threads=1`은 순차 실행, `--show-output`은 통과한 테스트의 출력까지 표시한다.",
+        "이름 인자는 부분 일치로 필터링하며, 하나만 지정할 수 있다.",
+        "`--ignored`는 무시된 테스트만, `--include-ignored`는 무시된 것을 포함한 전부를 실행한다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "여러 테스트가 같은 임시 파일에 쓰고 읽어서 간헐적으로 실패합니다. 코드를 고치지 않고 가장 직접적으로 해결하는 명령은?",
+          "options": [
+            "cargo test -- --show-output",
+            "cargo test -- --test-threads=1",
+            "cargo test -- --ignored",
+            "cargo test --release"
+          ],
+          "answer": 1,
+          "explain": "스레드를 1개로 두면 병렬 실행이 사라져 테스트끼리 간섭하지 않습니다. 근본 해결은 테스트마다 다른 파일을 쓰게 하는 것입니다."
+        },
+        {
+          "type": "tf",
+          "q": "테스트가 통과하면 그 안에서 호출한 `println!`의 출력은 기본적으로 화면에 표시되지 않는다.",
+          "answer": true,
+          "explain": "테스트 라이브러리가 표준 출력을 가로채기 때문입니다. 실패한 테스트의 출력만 실패 보고에 함께 나오며, `--show-output`으로 통과분도 볼 수 있습니다."
+        },
+        {
+          "type": "fill",
+          "q": "실행에 몇 분씩 걸리는 테스트를 평소 실행에서 제외하려 합니다. 빈칸에 들어갈 것은?",
+          "code": "#[test]\n#[___]\nfn full_index_rebuild() {\n    // 아주 오래 걸리는 작업\n}",
+          "options": ["skip", "cfg(test)", "ignore", "should_panic"],
+          "answer": 2,
+          "explain": "`#[ignore]`가 붙은 테스트는 평소 `cargo test`에서 `ignored`로 표시되고 실행되지 않습니다."
+        },
+        {
+          "type": "output",
+          "q": "`add_two_and_two`, `add_three_and_two`, `one_hundred` 세 테스트가 있을 때 `cargo test add`를 실행하면 요약 줄은 어떻게 되나요?",
+          "code": "$ cargo test add",
+          "options": [
+            "3 passed; 0 failed; 0 filtered out",
+            "2 passed; 0 failed; 1 filtered out",
+            "1 passed; 0 failed; 2 filtered out",
+            "0 passed; 0 failed; 3 filtered out"
+          ],
+          "answer": 1,
+          "explain": "이름에 `add`가 포함된 두 테스트가 실행되고, `one_hundred`는 필터에 걸려 `1 filtered out`으로 집계됩니다."
+        },
+        {
+          "type": "mc",
+          "q": "`cargo test parse_empty parse_number`처럼 이름을 두 개 나열하면 어떻게 되나요?",
+          "options": [
+            "두 테스트가 모두 실행된다",
+            "첫 번째 값만 필터로 쓰이고 두 번째는 무시된다",
+            "두 이름을 AND 조건으로 해석해 아무 테스트도 실행되지 않는다",
+            "Cargo가 에러를 내고 종료한다"
+          ],
+          "answer": 1,
+          "explain": "이름 필터는 하나만 받습니다. 여러 개를 돌리려면 공통으로 포함된 부분 문자열(`parse` 등)을 쓰세요."
+        },
+        {
+          "type": "match",
+          "q": "명령과 그 효과를 연결하세요.",
+          "pairs": [
+            ["cargo test -- --ignored", "무시 표시된 테스트만 실행"],
+            ["cargo test -- --include-ignored", "무시된 것을 포함해 전부 실행"],
+            ["cargo test -- --show-output", "통과한 테스트의 출력까지 표시"],
+            ["cargo test -- --test-threads=1", "테스트를 하나씩 순차 실행"]
+          ],
+          "explain": "`--ignored`와 `--include-ignored`의 차이가 핵심입니다. 전자는 '무시된 것만', 후자는 '무시된 것까지 전부'입니다."
+        },
+        {
+          "type": "tf",
+          "q": "`cargo test --release -- --test-threads=1`에서 `--release`는 테스트 바이너리가, `--test-threads=1`은 Cargo가 해석한다.",
+          "answer": false,
+          "explain": "정반대입니다. `--` 앞은 Cargo에게, 뒤는 테스트 바이너리에게 전달됩니다."
+        },
+        {
+          "type": "mc",
+          "q": "`mod parser` 안에 있는 테스트만 전부 실행하려면 어떻게 하나요?",
+          "options": [
+            "테스트 이름에 모듈 이름이 포함되므로 `cargo test parser`를 실행한다",
+            "모듈 단위 실행은 지원하지 않으므로 테스트 이름을 하나씩 실행한다",
+            "`cargo test --mod parser`를 실행한다",
+            "해당 모듈 외의 모든 테스트에 `#[ignore]`를 붙인다"
+          ],
+          "answer": 0,
+          "explain": "테스트의 전체 이름은 `parser::단위테스트이름` 형태이므로, 모듈 이름으로 필터링하면 그 모듈의 테스트가 모두 걸립니다."
+        }
+      ]
+    },
+    {
+      "id": "ch11-4",
+      "title": "테스트 조직화: 단위 테스트와 통합 테스트",
+      "summary": "Rust 커뮤니티는 테스트를 크게 두 갈래로 나눕니다. **단위 테스트(unit test)**는 작고 집중적이며, 모듈 하나를 격리해서 검사하고 비공개 항목에도 접근할 수 있습니다. **통합 테스트(integration test)**는 라이브러리 바깥에 있으며, 외부 사용자와 똑같이 공개 API만 사용해 여러 부분이 함께 잘 동작하는지 검사합니다.\n\n단위 테스트는 검사 대상 코드와 같은 파일, 즉 `src` 안에 둡니다. 관례는 파일마다 `tests`라는 모듈을 만들고 `#[cfg(test)]`를 붙이는 것입니다. `cfg`는 configuration의 약자로, 특정 설정에서만 해당 항목을 포함하라는 뜻입니다. 여기서 설정은 `test`이므로 **`cargo test`일 때만 컴파일**되고 `cargo build` 결과물에는 포함되지 않습니다. 컴파일 시간과 산출물 크기를 아끼는 효과가 있습니다. 이 규칙은 `#[test]`가 안 붙은 도우미 함수에도 똑같이 적용됩니다.\n\n테스트 모듈은 특별한 존재가 아니라 그냥 자식 모듈이고, 자식 모듈은 조상 모듈의 항목을 볼 수 있습니다. 그래서 `use super::*;` 한 줄이면 `pub`이 아닌 함수까지 불러 쓸 수 있습니다. Rust는 비공개 함수 테스트를 막지 않습니다.\n\n```rust\npub fn normalize(text: &str) -> String {\n    collapse_spaces(text.trim())\n}\n\nfn collapse_spaces(text: &str) -> String {\n    text.split_whitespace().collect::<Vec<_>>().join(\" \")\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn collapses_inner_spaces() {\n        assert_eq!(collapse_spaces(\"a   b\"), \"a b\");\n    }\n}\n```\n\n통합 테스트는 프로젝트 최상위에 `src`와 나란히 `tests` 디렉터리를 만들어 넣습니다. Cargo는 이 디렉터리의 **각 파일을 독립된 크레이트로 컴파일합니다.** 그래서 파일마다 `use 내_크레이트이름::항목;`으로 라이브러리를 스코프에 가져와야 하고, 반대로 `#[cfg(test)]`는 붙일 필요가 없습니다. Cargo가 이 디렉터리를 `cargo test`에서만 컴파일하기 때문입니다.\n\n출력은 단위 테스트, 통합 테스트 파일별 구역, 문서 테스트 순으로 나뉩니다. 앞 구역에서 실패가 나면 뒤 구역은 아예 실행되지 않습니다. 특정 파일만 돌리려면 `cargo test --test 파일이름`을 쓰면 됩니다.\n\n여러 통합 테스트 파일이 공통 도우미를 쓸 때 함정이 하나 있습니다. `tests/common.rs`를 만들면 그 파일도 독립 크레이트로 취급되어, 테스트가 0개인 구역이 출력에 등장합니다. 이를 피하려면 `tests/common/mod.rs`라는 예전 방식의 경로로 만드세요. `tests` 하위 **디렉터리**의 파일은 별도 크레이트로 컴파일되지 않아 출력에 구역이 생기지 않고, 각 테스트 파일에서 `mod common;`으로 선언해 `common::setup()`처럼 호출할 수 있습니다.\n\n마지막으로, `src/main.rs`만 있고 `src/lib.rs`가 없는 바이너리 크레이트는 통합 테스트에서 `use`로 불러올 수 없습니다. 다른 크레이트에 항목을 노출하는 것은 라이브러리 크레이트뿐이기 때문입니다. 그래서 바이너리를 제공하는 Rust 프로젝트는 보통 로직을 `src/lib.rs`에 두고 `src/main.rs`는 그것을 호출하는 얇은 껍데기로 만듭니다. 라이브러리가 검증되면 남은 몇 줄은 따로 테스트할 필요가 거의 없습니다.",
+      "keyPoints": [
+        "`#[cfg(test)]`가 붙은 모듈은 `cargo test`에서만 컴파일되어 빌드 산출물에 포함되지 않는다.",
+        "테스트 모듈은 자식 모듈이므로 `use super::*;`로 비공개 함수까지 테스트할 수 있다.",
+        "`tests/` 디렉터리의 각 파일은 독립 크레이트라 `use 크레이트명::...`이 필요하고 `#[cfg(test)]`는 불필요하다.",
+        "공통 도우미는 `tests/common.rs`가 아니라 `tests/common/mod.rs`에 두어야 출력에 빈 구역이 생기지 않는다.",
+        "바이너리 크레이트는 외부에 항목을 노출하지 않으므로, 로직을 `src/lib.rs`로 옮겨야 통합 테스트가 가능하다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "`#[cfg(test)]`를 테스트 모듈에 붙이는 이유로 가장 정확한 것은?",
+          "options": [
+            "그 모듈 안의 함수를 자동으로 테스트로 등록하기 위해",
+            "`cargo test`에서만 컴파일되게 해서 빌드 시간과 산출물 크기를 아끼기 위해",
+            "테스트를 병렬 대신 순차로 실행하기 위해",
+            "비공개 함수에 접근할 수 있게 하기 위해"
+          ],
+          "answer": 1,
+          "explain": "테스트 등록은 `#[test]`가 하고, 비공개 접근은 모듈 계층 규칙 덕분입니다. `cfg(test)`는 오직 조건부 컴파일을 담당합니다."
+        },
+        {
+          "type": "tf",
+          "q": "Rust에서는 `pub`이 붙지 않은 비공개 함수를 단위 테스트로 검사할 수 있다.",
+          "answer": true,
+          "explain": "`tests` 모듈은 자식 모듈이고 자식은 조상의 항목을 볼 수 있으므로, `use super::*;`로 비공개 함수를 불러 호출할 수 있습니다."
+        },
+        {
+          "type": "fill",
+          "q": "단위 테스트 모듈에서 바깥 모듈의 항목을 전부 가져오려 합니다. 빈칸에 들어갈 것은?",
+          "code": "#[cfg(test)]\nmod tests {\n    use ___;\n\n    #[test]\n    fn works() {\n        assert_eq!(collapse_spaces(\"a  b\"), \"a b\");\n    }\n}",
+          "options": ["crate::tests::*", "super::*", "self::*", "std::*"],
+          "answer": 1,
+          "explain": "`super`는 부모 모듈을 가리킵니다. 글롭 `*`와 함께 쓰면 부모에 정의된 모든 항목을 테스트 모듈 스코프로 가져옵니다."
+        },
+        {
+          "type": "mc",
+          "q": "`tests/` 디렉터리의 통합 테스트 파일에 대해 옳은 것은?",
+          "options": [
+            "파일마다 `#[cfg(test)]`를 붙여야 `cargo build`에서 제외된다",
+            "모든 파일이 하나의 크레이트로 합쳐지므로 `use`가 필요 없다",
+            "각 파일이 독립 크레이트라서 `use 크레이트명::항목;`으로 라이브러리를 가져와야 한다",
+            "라이브러리의 비공개 함수도 직접 호출할 수 있다"
+          ],
+          "answer": 2,
+          "explain": "통합 테스트는 외부 사용자와 같은 위치에 있으므로 공개 API만 쓸 수 있고, 파일마다 라이브러리를 스코프로 가져와야 합니다. `#[cfg(test)]`는 필요 없습니다."
+        },
+        {
+          "type": "output",
+          "q": "도우미 함수를 공유하려고 `tests/common.rs`를 만들고 `pub fn setup() {}`만 넣었습니다. `cargo test` 출력은 어떻게 되나요?",
+          "code": "tests/\n├── common.rs\n└── api_test.rs",
+          "options": [
+            "아무 변화도 없다",
+            "common.rs가 별도 크레이트로 컴파일되어 `running 0 tests` 구역이 하나 더 생긴다",
+            "테스트 함수가 없어서 컴파일 에러가 난다",
+            "api_test.rs에서 자동으로 `setup`을 쓸 수 있게 된다"
+          ],
+          "answer": 1,
+          "explain": "`tests` 바로 아래 파일은 모두 독립 크레이트로 취급됩니다. 이를 피하려면 `tests/common/mod.rs`로 옮기세요."
+        },
+        {
+          "type": "order",
+          "q": "`tests/common/mod.rs`의 도우미를 쓰는 통합 테스트 파일을 올바른 순서로 배열하세요.",
+          "items": [
+            "use text_tools::normalize;",
+            "mod common;",
+            "#[test]",
+            "fn trims_and_collapses() {",
+            "    common::setup();"
+          ],
+          "explain": "`use`와 `mod` 선언을 파일 맨 위에 두고, 그다음 테스트 함수를 정의합니다. `mod common;`이 있어야 `common::setup()`을 호출할 수 있습니다."
+        },
+        {
+          "type": "match",
+          "q": "테스트 종류와 특징을 연결하세요.",
+          "pairs": [
+            ["단위 테스트", "`src` 안 같은 파일에 두고 비공개 항목도 검사"],
+            ["통합 테스트", "`tests/` 디렉터리에서 공개 API만 사용"],
+            ["tests/common/mod.rs", "출력에 구역을 만들지 않는 공용 도우미"],
+            ["#[cfg(test)]", "테스트 실행 시에만 컴파일하라는 표시"]
+          ],
+          "explain": "단위 테스트는 내부를 좁게, 통합 테스트는 외부 시선으로 넓게 봅니다. 둘 다 있어야 부분과 전체를 함께 보장할 수 있습니다."
+        },
+        {
+          "type": "mc",
+          "q": "`src/main.rs`만 있는 바이너리 크레이트의 로직을 `src/lib.rs`로 옮기는 주된 이유는?",
+          "options": [
+            "바이너리 크레이트에서는 `#[test]`를 쓸 수 없기 때문에",
+            "바이너리 크레이트는 다른 크레이트에 항목을 노출하지 않아 통합 테스트에서 `use`로 불러올 수 없기 때문에",
+            "`cargo test`가 `src/main.rs`를 아예 컴파일하지 않기 때문에",
+            "`main` 함수 안에서는 `assert_eq!`를 호출할 수 없기 때문에"
+          ],
+          "answer": 1,
+          "explain": "다른 크레이트가 쓸 항목을 노출하는 것은 라이브러리 크레이트뿐입니다. 로직을 `lib.rs`로 옮기면 통합 테스트가 그것을 검증할 수 있고, `main.rs`에는 검증할 것이 거의 남지 않습니다."
+        }
+      ]
+    }
+  ]
+}

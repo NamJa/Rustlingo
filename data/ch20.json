@@ -1,0 +1,728 @@
+{
+  "id": "ch20",
+  "number": 20,
+  "title": "고급 기능",
+  "titleEn": "Advanced Features",
+  "emoji": "🧙",
+  "pages": "561-613",
+  "intro": "이 챕터는 평소에는 자주 쓰지 않지만 알아두면 결정적인 순간에 도움이 되는 러스트의 고급 기능들을 모아 다룬다. 컴파일러의 안전 보장을 잠시 내려놓는 unsafe Rust, 연관 타입·연산자 오버로딩·슈퍼트레이트 같은 트레이트의 깊은 문법, 뉴타입과 never 타입 같은 타입 시스템의 구석, 함수 포인터와 클로저 반환, 그리고 코드를 생성하는 매크로까지 살펴본다. 남의 코드나 컴파일러 에러 메시지에서 이런 문법을 만났을 때 당황하지 않는 것이 목표다.",
+  "lessons": [
+    {
+      "id": "ch20-1",
+      "title": "unsafe Rust와 원시 포인터",
+      "summary": "러스트의 정적 분석은 **보수적**이다. 실제로는 안전한 코드라도 컴파일러가 확신하지 못하면 거부한다. 또 운영체제 호출이나 하드웨어 조작처럼 본질적으로 검증 불가능한 작업도 존재한다. `unsafe` 키워드는 이런 상황에서 \"이 부분은 내가 책임진다\"고 컴파일러에게 선언하는 장치다.\n\n`unsafe` 블록 안에서만 할 수 있는 일은 딱 다섯 가지이고, 이를 **다섯 가지 초능력(superpowers)** 이라 부른다. (1) 원시 포인터 역참조, (2) unsafe 함수·메서드 호출, (3) 가변 정적 변수 읽기·쓰기, (4) unsafe 트레이트 구현, (5) `union` 필드 접근이다. 흔한 오해와 달리 `unsafe`는 **대여 검사기를 끄지 않는다**. 블록 안에서도 참조는 여전히 검사되며, 소유권 규칙도 그대로 적용된다. 열리는 것은 오직 위 다섯 가지 문법뿐이다.\n\n원시 포인터에는 불변 `*const T`와 가변 `*mut T` 두 종류가 있다. 여기서 별표는 역참조 연산자가 아니라 **타입 이름의 일부**다. 원시 포인터는 대여 규칙을 무시할 수 있고, 유효한 메모리를 가리킨다는 보장도, 널이 아니라는 보장도, 자동 정리도 없다. 그 대신 참조로는 표현할 수 없는 구조를 만들 수 있다.\n\n포인터를 **만드는 것 자체는 안전한 코드**에서도 가능하다. `&raw const x`와 `&raw mut x` 원시 참조 연산자를 쓴다. 위험한 순간은 값을 실제로 읽거나 쓰는 역참조이며, 이때만 `unsafe` 블록이 필요하다.\n\n```rust\nfn main() {\n    let mut score = 10;\n    let p_read = &raw const score;   // *const i32\n    let p_write = &raw mut score;    // *mut i32\n\n    unsafe {\n        *p_write += 5;\n        println!(\"{}\", *p_read);     // 15\n    }\n}\n```\n\n같은 대상을 가리키는 불변 포인터와 가변 포인터를 동시에 만들 수 있다는 점에 주목하자. 참조였다면 컴파일되지 않았을 코드다. 그만큼 데이터 경쟁을 만들기도 쉬우니 주의해야 한다.\n\n함수 이름 앞에 `unsafe`를 붙이면 **호출자가 지켜야 할 계약이 있다**는 표시가 된다. 호출은 `unsafe` 블록 안에서만 가능하다. 2024 에디션에서는 unsafe 함수의 본문도 자동으로 unsafe 블록이 되지 않으므로, 함수 안에서 위험한 연산을 할 때 다시 `unsafe` 블록으로 감싸야 한다. 생략하면 컴파일러가 경고한다. 관례적으로 `// SAFETY:` 주석으로 지켜야 할 조건을 적어 둔다.\n\n중요한 설계 원칙은 **불안전한 코드를 안전한 추상화로 감싸는 것**이다. 함수 내부에 `unsafe`가 있다고 해서 함수 전체를 `unsafe`로 표시할 필요는 없다. 잘못 쓸 수 없도록 함수가 스스로 조건을 검사한다면, 바깥에는 안전한 API를 제공할 수 있다. 표준 라이브러리의 `split_at_mut`이 대표적이다.\n\n```rust\nuse std::slice;\n\nfn halve(values: &mut [i32], mid: usize) -> (&mut [i32], &mut [i32]) {\n    let len = values.len();\n    let ptr = values.as_mut_ptr();\n    assert!(mid <= len);\n\n    unsafe {\n        (\n            slice::from_raw_parts_mut(ptr, mid),\n            slice::from_raw_parts_mut(ptr.add(mid), len - mid),\n        )\n    }\n}\n```\n\n대여 검사기는 \"같은 슬라이스를 두 번 가변 대여했다\"고만 볼 뿐 두 조각이 겹치지 않는다는 사실은 이해하지 못한다. `assert!`가 범위를 보장하므로 사람이 보기에는 안전하고, 그래서 `unsafe`가 정당화된다. 반대로 임의의 주소를 정수에서 캐스팅해 슬라이스를 만드는 코드는 소유하지 않은 메모리를 건드리므로 **미정의 동작**이다.",
+      "keyPoints": [
+        "unsafe는 다섯 가지 초능력만 열어 줄 뿐 대여 검사기나 다른 안전 검사를 끄지 않는다.",
+        "원시 포인터 *const T / *mut T는 안전한 코드에서 &raw const, &raw mut로 만들 수 있고 역참조만 unsafe가 필요하다.",
+        "unsafe fn은 호출자가 지켜야 할 계약이 있다는 표시이며 SAFETY 주석으로 조건을 문서화한다.",
+        "내부에 unsafe가 있어도 조건을 스스로 검사한다면 안전한 API로 감쌀 수 있다(split_at_mut 패턴).",
+        "unsafe 블록은 가능한 한 작게 유지해야 메모리 버그 추적이 쉬워진다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "다음 중 unsafe 블록이 있어야만 할 수 있는 '초능력'이 아닌 것은?",
+          "options": [
+            "여러 개의 가변 참조를 동시에 만들기",
+            "union의 필드 접근",
+            "원시 포인터 역참조",
+            "가변 정적 변수 수정"
+          ],
+          "answer": 0,
+          "explain": "unsafe는 대여 검사기를 끄지 않는다. 가변 참조가 하나만 존재할 수 있다는 규칙은 unsafe 블록 안에서도 그대로 적용된다."
+        },
+        {
+          "type": "tf",
+          "q": "unsafe 블록 안에서는 대여 검사기가 비활성화되어 소유권 규칙이 검사되지 않는다.",
+          "answer": false,
+          "explain": "unsafe는 다섯 가지 문법만 허용해 줄 뿐이다. 블록 안에서도 참조는 평소처럼 검사된다."
+        },
+        {
+          "type": "fill",
+          "q": "불변 원시 포인터를 만들려면 빈칸에 무엇이 들어가야 할까?",
+          "code": "let value = 42;\nlet p = ___ value;\nunsafe {\n    println!(\"{}\", *p);\n}",
+          "options": [
+            "raw &const",
+            "&raw const",
+            "&raw",
+            "*const"
+          ],
+          "answer": 1,
+          "explain": "&raw const는 *const T를, &raw mut는 *mut T를 만든다. 포인터 생성은 안전한 코드에서도 가능하고 역참조만 unsafe가 필요하다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "fn main() {\n    let x = 7;\n    let p = &raw const x;\n    println!(\"{}\", *p);\n}",
+          "options": [
+            "7",
+            "0",
+            "컴파일 에러",
+            "실행 중 패닉"
+          ],
+          "answer": 2,
+          "explain": "포인터를 만드는 것까지는 안전하지만 역참조 *p는 unsafe 블록 밖에서 할 수 없어 E0133 에러가 난다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "fn main() {\n    let mut n = 10;\n    let p = &raw mut n;\n    unsafe {\n        *p *= 3;\n    }\n    println!(\"{n}\");\n}",
+          "options": [
+            "컴파일 에러",
+            "10",
+            "13",
+            "30"
+          ],
+          "answer": 3,
+          "explain": "p는 n을 가리키는 가변 원시 포인터이므로 unsafe 블록에서 값을 직접 바꿀 수 있다. 10 * 3 = 30이 출력된다."
+        },
+        {
+          "type": "order",
+          "q": "슬라이스를 두 조각으로 나누는 안전한 추상화를 올바른 순서로 배열하세요.",
+          "items": [
+            "fn halve(values: &mut [i32], mid: usize) -> (&mut [i32], &mut [i32]) {",
+            "    let len = values.len();",
+            "    let ptr = values.as_mut_ptr();",
+            "    unsafe { (slice::from_raw_parts_mut(ptr, mid), slice::from_raw_parts_mut(ptr.add(mid), len - mid)) }",
+            "}"
+          ],
+          "explain": "길이와 원시 포인터를 먼저 얻은 뒤 unsafe 블록에서 두 슬라이스를 만든다. 실제 구현에서는 unsafe 앞에 assert!(mid <= len)을 넣어 범위를 보장한다."
+        },
+        {
+          "type": "mc",
+          "q": "안전한 러스트만으로 (&mut values[..mid], &mut values[mid..])를 반환할 수 없는 이유는?",
+          "options": [
+            "대여 검사기가 같은 값을 두 번 가변 대여한 것으로만 보기 때문",
+            "mid가 usize이기 때문",
+            "튜플은 참조를 담을 수 없기 때문",
+            "슬라이스는 반환값으로 쓸 수 없기 때문"
+          ],
+          "answer": 0,
+          "explain": "두 조각이 겹치지 않는다는 사실을 컴파일러는 알지 못한다. 사람이 겹치지 않음을 보장할 수 있을 때 unsafe로 우회한다."
+        },
+        {
+          "type": "match",
+          "q": "개념과 설명을 연결하세요.",
+          "pairs": [
+            [
+              "*const T",
+              "불변 원시 포인터 타입"
+            ],
+            [
+              "&raw mut x",
+              "가변 원시 포인터를 만드는 연산자"
+            ],
+            [
+              "unsafe fn",
+              "호출자가 지켜야 할 계약이 있는 함수"
+            ],
+            [
+              "slice::from_raw_parts_mut",
+              "원시 포인터와 길이로 가변 슬라이스를 만드는 unsafe 함수"
+            ],
+            [
+              "// SAFETY:",
+              "안전 조건을 설명하는 관례적 주석"
+            ]
+          ],
+          "explain": "원시 포인터 생성은 안전하지만, 그것을 슬라이스나 값으로 바꾸는 순간부터 사람이 유효성을 책임진다."
+        }
+      ]
+    },
+    {
+      "id": "ch20-2",
+      "title": "FFI, 정적 변수, unsafe 트레이트와 union",
+      "summary": "다른 언어로 작성된 코드를 부르려면 **FFI(Foreign Function Interface)** 가 필요하고, 러스트에서는 `extern` 키워드가 그 통로다. 외부 언어는 러스트의 규칙을 지키지 않으므로 컴파일러가 검증할 수 없고, 따라서 2024 에디션에서 extern 블록 자체를 `unsafe`로 표시한다.\n\n```rust\nunsafe extern \"C\" {\n    fn strlen(s: *const u8) -> usize;\n    safe fn abs(input: i32) -> i32;\n}\n```\n\n`\"C\"`는 함수를 어셈블리 수준에서 어떻게 호출할지 정하는 **ABI**를 가리킨다. `unsafe extern` 블록 안의 항목은 기본적으로 모두 불안전하지만, `abs`처럼 어떤 입력에도 메모리 문제를 일으키지 않는 함수라면 `safe` 키워드를 붙여 unsafe 블록 없이 호출하게 만들 수 있다. 다만 `safe`는 안전하다는 **약속**일 뿐 컴파일러가 검증해 주는 것은 아니다.\n\n반대로 러스트 함수를 C가 부르게 하려면 함수 앞에 `extern \"C\"`를 붙이고 `#[unsafe(no_mangle)]`을 단다. 컴파일러는 보통 함수 이름을 변형(mangling)하는데, 그러면 외부 언어가 이름으로 찾을 수 없기 때문이다. 이름 충돌 위험이 있으므로 애트리뷰트 자체가 `unsafe`로 표시된다.\n\n```rust\n#[unsafe(no_mangle)]\npub extern \"C\" fn rust_ping() {\n    println!(\"pong\");\n}\n```\n\n러스트의 전역 변수는 **정적 변수(static)** 라 부르고 이름은 대문자 스네이크 표기를 쓴다. 상수와 비슷해 보이지만 두 가지가 다르다. 정적 변수는 메모리상의 **고정된 주소**를 가지는 반면 상수는 쓰이는 곳마다 값이 복제될 수 있고, 정적 변수는 `mut`을 붙여 가변으로 만들 수 있다. 불변 정적 변수를 읽는 것은 안전하지만, `static mut`을 읽거나 쓰는 일은 여러 스레드가 동시에 접근하면 데이터 경쟁이 되므로 전부 unsafe다.\n\n```rust\nstatic mut HITS: u32 = 0;\n\n/// SAFETY: 한 번에 한 스레드에서만 호출해야 한다.\nunsafe fn bump() {\n    unsafe { HITS += 1; }\n}\n\nfn main() {\n    unsafe {\n        bump();\n        println!(\"{}\", *(&raw const HITS));\n    }\n}\n```\n\n가변 정적 변수에 **참조**를 만드는 것은 기본적으로 린트(`static_mut_refs`)로 거부된다. `println!`처럼 참조가 눈에 보이지 않게 생기는 경우도 마찬가지다. 그래서 위 코드처럼 원시 참조 연산자로 포인터를 얻어 접근한다. 가능하면 애초에 전역 가변 상태 대신 16장의 동시성 도구를 쓰는 편이 낫다.\n\n트레이트의 메서드 중 하나라도 컴파일러가 검증할 수 없는 불변 조건을 요구하면 그 트레이트는 `unsafe trait`이 되고, 구현도 `unsafe impl`로 해야 한다. 대표적인 예가 `Send`와 `Sync`다. 원시 포인터처럼 자동으로 `Send`가 붙지 않는 타입을 담은 구조체를 스레드 간에 보내고 싶다면, 안전함을 사람이 확인한 뒤 `unsafe impl Send for MyType {}`이라고 약속해야 한다.\n\n마지막 초능력은 `union` 필드 접근이다. `union`은 구조체와 비슷하지만 한 순간에 선언된 필드 중 하나만 유효하며, 어떤 필드가 들어 있는지 러스트가 알 수 없어 읽기가 unsafe다. 주로 C의 union과 맞물리기 위해 쓴다.\n\n불안전한 코드를 검증하는 도구로는 **Miri**가 있다. 컴파일 타임에 동작하는 대여 검사기와 달리 Miri는 프로그램이나 테스트를 실제로 실행하며 미정의 동작을 잡아내는 동적 도구다. `rustup +nightly component add miri`로 설치하고 `cargo +nightly miri run`으로 돌린다. Miri가 문제를 찾았다면 확실히 버그지만, 찾지 못했다고 안전이 증명된 것은 아니다.",
+      "keyPoints": [
+        "2024 에디션에서 extern 블록은 unsafe extern \"C\" 형태로 쓰고, 개별 항목에 safe를 붙이면 unsafe 없이 호출할 수 있다.",
+        "러스트 함수를 외부에 노출하려면 #[unsafe(no_mangle)]과 pub extern \"C\"를 함께 쓴다.",
+        "불변 정적 변수 읽기는 안전하지만 static mut 접근은 전부 unsafe이며 참조 대신 &raw로 접근한다.",
+        "컴파일러가 검증 못 하는 불변 조건이 있는 트레이트는 unsafe trait이고 unsafe impl로 구현한다(Send, Sync).",
+        "Miri는 실행 시점에 미정의 동작을 찾아내는 동적 검사 도구다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "2024 에디션에서 C 함수를 선언하는 올바른 형태는?",
+          "options": [
+            "extern unsafe \"C\" { fn abs(x: i32) -> i32; }",
+            "unsafe extern \"C\" { fn abs(x: i32) -> i32; }",
+            "extern \"C\" { unsafe fn abs(x: i32) -> i32; }",
+            "unsafe \"C\" extern { fn abs(x: i32) -> i32; }"
+          ],
+          "answer": 1,
+          "explain": "extern 블록 전체를 unsafe로 표시한다. 블록 안 항목은 기본적으로 모두 불안전하다."
+        },
+        {
+          "type": "tf",
+          "q": "unsafe extern 블록 안의 함수에 safe 키워드를 붙이면 unsafe 블록 없이 호출할 수 있다.",
+          "answer": true,
+          "explain": "safe는 그 함수만 안전하다고 표시하는 문법이다. 다만 실제 안전성은 작성자가 보증해야 하는 약속일 뿐이다."
+        },
+        {
+          "type": "fill",
+          "q": "C에서 부를 수 있도록 이름 변형을 끄려면 빈칸에 무엇이 들어가야 할까?",
+          "code": "#[___]\npub extern \"C\" fn rust_ping() {\n    println!(\"pong\");\n}",
+          "options": [
+            "export_name",
+            "no_mangle",
+            "unsafe(no_mangle)",
+            "unsafe no_mangle"
+          ],
+          "answer": 2,
+          "explain": "이름 충돌 위험 때문에 애트리뷰트 자체가 unsafe로 감싸진 #[unsafe(no_mangle)] 형태를 쓴다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "static LEVEL: u32 = 3;\n\nfn main() {\n    println!(\"{LEVEL}\");\n}",
+          "options": [
+            "0",
+            "컴파일 에러: unsafe 블록이 필요함",
+            "실행 중 패닉",
+            "3"
+          ],
+          "answer": 3,
+          "explain": "불변 정적 변수를 읽는 것은 안전하다. unsafe가 필요한 쪽은 static mut이다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "static mut COUNT: u32 = 0;\n\nfn main() {\n    COUNT += 1;\n    println!(\"{COUNT}\");\n}",
+          "options": [
+            "컴파일 에러",
+            "실행 중 패닉",
+            "1",
+            "0"
+          ],
+          "answer": 0,
+          "explain": "가변 정적 변수의 읽기와 쓰기는 모두 unsafe 블록 안에서만 가능하므로 컴파일되지 않는다."
+        },
+        {
+          "type": "mc",
+          "q": "원시 포인터를 필드로 가진 구조체를 스레드 간에 보내려고 할 때 필요한 것은?",
+          "options": [
+            "impl Send for MyType {}",
+            "unsafe impl Send for MyType {}",
+            "#[derive(Send)]",
+            "static impl Send for MyType {}"
+          ],
+          "answer": 1,
+          "explain": "Send는 unsafe 트레이트다. 컴파일러가 자동으로 붙여 주지 않는 타입에는 사람이 안전성을 보증하며 unsafe impl로 구현한다."
+        },
+        {
+          "type": "tf",
+          "q": "Miri는 컴파일 타임에 코드를 정적으로 분석해 미정의 동작을 찾아낸다.",
+          "answer": false,
+          "explain": "Miri는 프로그램이나 테스트를 실제로 실행하면서 검사하는 동적 도구다. 실행되지 않은 경로의 문제는 잡지 못한다."
+        },
+        {
+          "type": "match",
+          "q": "개념과 설명을 연결하세요.",
+          "pairs": [
+            [
+              "static mut",
+              "읽기와 쓰기 모두 unsafe인 전역 가변 변수"
+            ],
+            [
+              "const",
+              "사용하는 곳마다 값이 복제될 수 있는 상수"
+            ],
+            [
+              "union",
+              "한 순간에 한 필드만 유효해 접근이 unsafe인 타입"
+            ],
+            [
+              "unsafe trait",
+              "컴파일러가 검증 못 하는 불변 조건을 요구하는 트레이트"
+            ],
+            [
+              "cargo +nightly miri run",
+              "실행하며 미정의 동작을 찾는 명령"
+            ]
+          ],
+          "explain": "정적 변수는 고정된 주소를 가지고, 상수는 인라인될 수 있다는 점이 둘의 핵심 차이다."
+        }
+      ]
+    },
+    {
+      "id": "ch20-3",
+      "title": "고급 트레이트: 연관 타입과 연산자 오버로딩",
+      "summary": "**연관 타입(associated type)** 은 트레이트 정의 안에 타입 자리표시자를 두고, 구현하는 쪽에서 실제 타입을 정하게 하는 문법이다. 표준 라이브러리의 `Iterator`가 대표적이다.\n\n```rust\npub trait Iterator {\n    type Item;\n    fn next(&mut self) -> Option<Self::Item>;\n}\n```\n\n제네릭과 비슷해 보이지만 결정적인 차이가 있다. 트레이트가 제네릭 파라미터를 가지면 한 타입에 대해 `Iterator<u32>`, `Iterator<String>`처럼 **여러 번 구현**할 수 있고, 그러면 `next`를 부를 때마다 어느 구현인지 타입 주석으로 알려야 한다. 연관 타입은 타입당 구현이 하나뿐이므로 `Item`을 한 번만 정하면 되고 호출부는 주석이 필요 없다.\n\n제네릭 파라미터에는 **기본 타입(default type parameter)** 을 줄 수 있고, 이것이 가장 빛나는 곳이 연산자 오버로딩이다. `std::ops`의 트레이트를 구현하면 해당 연산자의 동작을 정의할 수 있다.\n\n```rust\nuse std::ops::Add;\n\n#[derive(Debug, PartialEq)]\nstruct Coin(u32);\n\nimpl Add for Coin {\n    type Output = Coin;\n    fn add(self, rhs: Coin) -> Coin {\n        Coin(self.0 + rhs.0)\n    }\n}\n```\n\n`Add`의 정의는 `trait Add<Rhs = Self>`다. `Rhs`(right-hand side)를 명시하지 않으면 자기 자신 타입이 되므로, 같은 타입끼리 더하는 흔한 경우에는 아무것도 적지 않아도 된다. 서로 다른 타입을 더하고 싶다면 `impl Add<Meters> for Millimeters`처럼 `Rhs`를 지정한다. 기본 타입 파라미터는 기존 코드를 깨지 않고 트레이트를 확장하거나, 대부분의 사용자가 필요로 하지 않는 커스터마이즈를 열어 둘 때 쓴다.\n\n이름이 같은 메서드가 여러 곳에 있을 때는 **어느 것인지 밝히는 문법**이 필요하다. 타입에 직접 구현된 메서드가 기본으로 선택되고, 트레이트 쪽을 부르려면 `Pilot::fly(&person)`처럼 트레이트 이름을 앞에 둔다. 그런데 `self`를 받지 않는 연관 함수는 이 방법으로도 부족하다. 어떤 타입의 구현인지 알 수 없기 때문이다. 이때 **완전 정규화 문법(fully qualified syntax)** 을 쓴다.\n\n```rust\ntrait Greet {\n    fn label() -> String;\n}\n\nstruct Cat;\n\nimpl Cat {\n    fn label() -> String { String::from(\"나비\") }\n}\n\nimpl Greet for Cat {\n    fn label() -> String { String::from(\"고양이\") }\n}\n\nfn main() {\n    println!(\"{}\", Cat::label());              // 나비\n    println!(\"{}\", <Cat as Greet>::label());   // 고양이\n}\n```\n\n일반형은 `<Type as Trait>::function(receiver, args...)`이다. 컴파일러가 스스로 알아낼 수 있는 부분은 생략할 수 있으므로, 실제로는 이름이 충돌할 때만 이 장황한 형태를 쓴다.\n\n트레이트가 다른 트레이트의 기능에 의존해야 할 때는 **슈퍼트레이트(supertrait)** 를 선언한다. `trait OutlinePrint: fmt::Display`라고 쓰면 `OutlinePrint`를 구현하는 타입은 반드시 `Display`도 구현해야 하고, 덕분에 기본 메서드 안에서 `self.to_string()`을 쓸 수 있다. `Display`가 없는 타입에 구현하려 하면 컴파일 에러가 난다.\n\n마지막으로 **고아 규칙(orphan rule)** 때문에 외부 트레이트를 외부 타입에 구현할 수 없는 문제는 **뉴타입 패턴**으로 우회한다. 한 칸짜리 튜플 구조체로 감싸면 그 래퍼는 내 크레이트의 타입이 되므로 자유롭게 구현할 수 있다.\n\n```rust\nuse std::fmt;\n\nstruct Tags(Vec<String>);\n\nimpl fmt::Display for Tags {\n    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {\n        write!(f, \"#{}\", self.0.join(\" #\"))\n    }\n}\n```\n\n대가는 래퍼가 내부 타입의 메서드를 물려받지 않는다는 점이다. 전부 넘겨주고 싶다면 `Deref`를 구현하고, 일부만 노출하고 싶다면 필요한 메서드만 직접 위임한다. 런타임 비용은 없다.",
+      "keyPoints": [
+        "연관 타입은 타입당 구현이 하나뿐이라 호출부에서 타입 주석이 필요 없다는 점이 제네릭과 다르다.",
+        "Add<Rhs = Self>의 기본 타입 파라미터 덕분에 같은 타입끼리 더할 때는 Rhs를 적지 않아도 된다.",
+        "타입에 직접 구현된 메서드가 트레이트 메서드보다 우선 선택된다.",
+        "self가 없는 연관 함수를 구분하려면 <Type as Trait>::function() 완전 정규화 문법이 필요하다.",
+        "고아 규칙은 튜플 구조체로 감싸는 뉴타입 패턴으로 우회하며 런타임 비용이 없다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "Iterator가 제네릭 파라미터 대신 연관 타입 Item을 쓰는 이유로 가장 알맞은 것은?",
+          "options": [
+            "연관 타입만 Option을 반환할 수 있기 때문",
+            "연관 타입이 실행 속도가 더 빠르기 때문",
+            "한 타입에 대해 구현이 하나로 고정되어 호출부에서 타입을 명시하지 않아도 되기 때문",
+            "제네릭 트레이트는 표준 라이브러리에서 금지되기 때문"
+          ],
+          "answer": 2,
+          "explain": "제네릭이면 Iterator<u32>, Iterator<String>처럼 여러 번 구현할 수 있어 next 호출마다 어느 구현인지 밝혀야 한다."
+        },
+        {
+          "type": "fill",
+          "q": "Counter에 Iterator를 구현할 때 빈칸에 들어갈 것은?",
+          "code": "impl Iterator for Counter {\n    type ___ = u32;\n\n    fn next(&mut self) -> Option<Self::Item> {\n        None\n    }\n}",
+          "options": [
+            "Target",
+            "Value",
+            "Output",
+            "Item"
+          ],
+          "answer": 3,
+          "explain": "Iterator의 연관 타입 이름은 Item이다. Output은 Add 같은 연산자 트레이트에서 쓰인다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "use std::ops::Add;\n\n#[derive(Debug, PartialEq)]\nstruct Coin(u32);\n\nimpl Add for Coin {\n    type Output = Coin;\n    fn add(self, rhs: Coin) -> Coin {\n        Coin(self.0 + rhs.0)\n    }\n}\n\nfn main() {\n    let total = Coin(3) + Coin(4);\n    println!(\"{}\", total.0);\n}",
+          "options": [
+            "7",
+            "34",
+            "컴파일 에러: + 연산자는 오버로딩할 수 없음",
+            "컴파일 에러: Rhs를 명시해야 함"
+          ],
+          "answer": 0,
+          "explain": "Add를 구현하면 + 연산자가 add를 호출한다. Rhs의 기본값이 Self라서 Coin끼리 더할 때는 따로 지정할 필요가 없다."
+        },
+        {
+          "type": "mc",
+          "q": "밀리미터 값에 미터 값을 더하도록 Add를 구현하려면?",
+          "options": [
+            "impl Add for Millimeters",
+            "impl Add<Meters> for Millimeters",
+            "impl Add<Millimeters> for Meters where Rhs = Meters",
+            "impl Add for Millimeters { type Rhs = Meters; }"
+          ],
+          "answer": 1,
+          "explain": "기본값 Self 대신 Rhs를 Meters로 지정하려면 트레이트 이름 뒤 꺾쇠 안에 타입을 적는다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "trait Greet {\n    fn label() -> String;\n}\n\nstruct Cat;\n\nimpl Cat {\n    fn label() -> String { String::from(\"나비\") }\n}\n\nimpl Greet for Cat {\n    fn label() -> String { String::from(\"고양이\") }\n}\n\nfn main() {\n    println!(\"{}\", Cat::label());\n}",
+          "options": [
+            "빈 문자열",
+            "고양이",
+            "나비",
+            "컴파일 에러: 이름이 모호함"
+          ],
+          "answer": 2,
+          "explain": "타입에 직접 구현된 연관 함수가 우선한다. 트레이트 쪽을 부르려면 <Cat as Greet>::label()을 써야 한다."
+        },
+        {
+          "type": "tf",
+          "q": "trait OutlinePrint: fmt::Display로 선언하면 Display를 구현하지 않은 타입에는 OutlinePrint를 구현할 수 없다.",
+          "answer": true,
+          "explain": "슈퍼트레이트는 트레이트에 붙은 트레이트 바운드처럼 동작해서 Display 구현을 강제한다."
+        },
+        {
+          "type": "order",
+          "q": "Vec<String>에 Display를 구현하기 위한 뉴타입 코드를 올바른 순서로 배열하세요.",
+          "items": [
+            "impl fmt::Display for Tags {",
+            "    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {",
+            "        write!(f, \"#{}\", self.0.join(\" #\"))",
+            "    }",
+            "}"
+          ],
+          "explain": "struct Tags(Vec<String>); 로 감싼 래퍼는 내 크레이트 소속이라 고아 규칙을 피할 수 있고, 내부 값은 self.0으로 꺼낸다."
+        },
+        {
+          "type": "match",
+          "q": "문법과 의미를 연결하세요.",
+          "pairs": [
+            [
+              "type Output;",
+              "트레이트 안에 선언된 연관 타입"
+            ],
+            [
+              "Rhs = Self",
+              "기본 타입 파라미터"
+            ],
+            [
+              "<Dog as Animal>::baby_name()",
+              "완전 정규화 문법"
+            ],
+            [
+              "trait A: B",
+              "B를 슈퍼트레이트로 요구"
+            ],
+            [
+              "struct Wrapper(Vec<String>);",
+              "고아 규칙을 피하는 뉴타입"
+            ]
+          ],
+          "explain": "모두 트레이트를 더 정밀하게 다루기 위한 문법으로, 이름 충돌과 외부 타입 제약을 해결한다."
+        }
+      ]
+    },
+    {
+      "id": "ch20-4",
+      "title": "고급 타입: 별칭, never 타입, 동적 크기 타입",
+      "summary": "**뉴타입 패턴**은 트레이트 구현을 위한 우회로일 뿐 아니라 그 자체로 유용하다. 같은 `u32`라도 `Millimeters(u32)`와 `Meters(u32)`로 감싸면 실수로 뒤바꿔 넘기는 코드가 **컴파일되지 않는다**. 또 내부 표현을 숨기고 공개 API만 노출하는 캡슐화 수단이기도 하다. 예를 들어 `HashMap<i32, String>`을 `People`로 감싸면 사용자는 내부에서 i32 ID를 쓴다는 사실을 몰라도 된다.\n\n이와 대비되는 것이 **타입 별칭(type alias)** 이다. `type` 키워드로 기존 타입에 다른 이름을 붙이는데, 새 타입이 만들어지는 것이 **아니라** 완전한 동의어다.\n\n```rust\ntype Kilometers = i32;\n\nlet a: i32 = 5;\nlet b: Kilometers = 7;\nprintln!(\"{}\", a + b); // 12, 그냥 i32끼리의 덧셈\n```\n\n즉 별칭은 타입 검사로 실수를 막아 주지 못한다. 별칭의 목적은 반복을 줄이는 것이다. `Box<dyn Fn() + Send + 'static>` 같은 긴 타입을 `type Thunk = ...`로 줄이면 시그니처가 훨씬 읽기 쉬워진다. 표준 라이브러리도 `std::io`에서 `type Result<T> = std::result::Result<T, std::io::Error>;`를 선언해 모듈 전체에서 일관된 인터페이스를 제공한다. 별칭이므로 `?` 연산자를 비롯해 원래 타입의 모든 기능을 그대로 쓸 수 있다.\n\n`!`는 값이 존재하지 않는 특별한 타입으로, **never 타입**이라 부른다. 값을 만들 수 없기 때문에 \"절대 반환하지 않는 함수\"의 반환 타입으로 쓰이며 이런 함수를 발산 함수(diverging function)라 한다. 핵심 성질은 `!` 타입의 표현식이 **어떤 타입으로든 강제 변환된다**는 것이다.\n\n```rust\nfn main() {\n    let mut sum = 0;\n    for token in [\"3\", \"hi\", \"5\"] {\n        let n: u32 = match token.parse() {\n            Ok(v) => v,\n            Err(_) => continue,\n        };\n        sum += n;\n    }\n    println!(\"{sum}\");\n}\n```\n\nmatch의 모든 갈래는 같은 타입이어야 하는데 한쪽은 `u32`, 다른 쪽은 `continue`다. `continue`의 타입이 `!`이고 값이 될 수 없으므로 컴파일러는 전체 타입을 `u32`로 결정한다. `panic!`도 마찬가지여서 `unwrap`의 `None` 갈래가 성립하고, `break` 없는 `loop` 역시 `!` 타입이다.\n\n**동적 크기 타입(DST)** 은 크기를 실행 시점에야 알 수 있는 타입이다. 대표적인 예가 `&str`이 아니라 `str` 자체다. `let s: str = \"안녕\";`이 안 되는 이유는 모든 값이 같은 크기를 차지해야 하는데 문자열마다 길이가 다르기 때문이다. 해결책은 포인터 뒤에 두는 것이다. `&str`은 시작 주소와 길이라는 두 값을 담으므로 크기가 컴파일 타임에 정해진다. **DST는 반드시 어떤 종류의 포인터 뒤에 두어야 한다**는 것이 황금률이며, `Box<str>`, `Rc<str>`도 같은 이유로 가능하다. 트레이트도 DST라서 트레이트 객체는 `&dyn Trait`이나 `Box<dyn Trait>` 형태로만 쓸 수 있다.\n\n컴파일 타임에 크기를 아는 타입에는 `Sized` 트레이트가 자동으로 구현되고, 러스트는 모든 제네릭 함수에 `Sized` 바운드를 **암묵적으로** 추가한다. 즉 `fn f<T>(t: T)`는 사실 `fn f<T: Sized>(t: T)`다. 이 제약을 풀려면 `?Sized`를 쓰고, 크기를 모르므로 값이 아니라 참조로 받아야 한다.\n\n```rust\nfn show<T: ?Sized + std::fmt::Debug>(value: &T) {\n    println!(\"{value:?}\");\n}\n```\n\n`?Sized`는 \"크기를 알 수도, 모를 수도 있다\"는 뜻이며 이 `?` 문법은 오직 `Sized`에만 쓸 수 있다.",
+      "keyPoints": [
+        "뉴타입은 새로운 타입을 만들어 단위 혼동을 컴파일 타임에 막지만, 타입 별칭은 동의어일 뿐 검사에 도움이 되지 않는다.",
+        "타입 별칭의 목적은 긴 타입의 반복을 줄이는 것이며 std::io::Result<T>가 대표적이다.",
+        "never 타입 !은 값을 가질 수 없고 어떤 타입으로든 강제 변환되어 continue, panic!, 무한 loop에 쓰인다.",
+        "str이나 dyn Trait 같은 DST는 크기를 모르므로 항상 포인터 뒤에 두어야 한다.",
+        "모든 제네릭 함수에는 T: Sized가 암묵적으로 붙으며 ?Sized로만 풀 수 있다."
+      ],
+      "exercises": [
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "type Kilometers = i32;\n\nfn main() {\n    let a: i32 = 5;\n    let b: Kilometers = 7;\n    println!(\"{}\", a + b);\n}",
+          "options": [
+            "컴파일 에러: 서로 다른 타입",
+            "57",
+            "0",
+            "12"
+          ],
+          "answer": 3,
+          "explain": "타입 별칭은 새 타입을 만들지 않는 동의어다. Kilometers와 i32는 완전히 같은 타입이라 그대로 더해진다."
+        },
+        {
+          "type": "mc",
+          "q": "struct Meters(i32)와 type Meters = i32의 가장 큰 차이는?",
+          "options": [
+            "뉴타입은 별개의 타입이라 i32와 섞어 쓰면 컴파일 에러가 난다",
+            "별칭은 메서드를 구현할 수 없다",
+            "별칭은 제네릭에 쓸 수 없다",
+            "뉴타입은 런타임 비용이 크다"
+          ],
+          "answer": 0,
+          "explain": "뉴타입은 타입 검사로 단위 혼동을 막아 준다. 별칭은 이름만 다를 뿐 검사에 아무 영향이 없다."
+        },
+        {
+          "type": "tf",
+          "q": "let s: str = \"hello\"; 는 str이 동적 크기 타입이기 때문에 컴파일되지 않는다.",
+          "answer": true,
+          "explain": "값마다 길이가 달라 필요한 메모리 크기를 컴파일 타임에 정할 수 없다. &str처럼 포인터 뒤에 두어야 한다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "fn main() {\n    let mut sum = 0;\n    for token in [\"3\", \"hi\", \"5\"] {\n        let n: u32 = match token.parse() {\n            Ok(v) => v,\n            Err(_) => continue,\n        };\n        sum += n;\n    }\n    println!(\"{sum}\");\n}",
+          "options": [
+            "3",
+            "8",
+            "컴파일 에러: match 갈래 타입 불일치",
+            "실행 중 패닉"
+          ],
+          "answer": 1,
+          "explain": "continue의 타입은 never 타입 !이고 어떤 타입으로든 강제 변환되므로 match 전체는 u32가 된다. 3 + 5 = 8."
+        },
+        {
+          "type": "fill",
+          "q": "크기를 모르는 타입도 받을 수 있게 하려면 빈칸에 무엇이 들어가야 할까?",
+          "code": "fn show<T: ___ + std::fmt::Debug>(value: &T) {\n    println!(\"{value:?}\");\n}",
+          "options": [
+            "Sized",
+            "!Sized",
+            "?Sized",
+            "dyn Sized"
+          ],
+          "answer": 2,
+          "explain": "?Sized는 크기를 알 수도 모를 수도 있다는 뜻이며 암묵적인 Sized 바운드를 해제한다. 이때 값은 참조로 받아야 한다."
+        },
+        {
+          "type": "mc",
+          "q": "never 타입 !을 값으로 가지는 표현식이 아닌 것은?",
+          "options": [
+            "panic!(\"오류\")",
+            "continue",
+            "break 없는 loop { }",
+            "return 0"
+          ],
+          "answer": 3,
+          "explain": "return 0은 함수의 반환 타입 값을 만들어 내는 반면 panic!, continue, 끝나지 않는 loop는 값을 만들지 않고 흐름을 바꾼다."
+        },
+        {
+          "type": "tf",
+          "q": "fn generic<T>(t: T) 라고 쓰면 러스트는 자동으로 T: Sized 바운드를 붙인다.",
+          "answer": true,
+          "explain": "기본적으로 제네릭 함수는 컴파일 타임에 크기를 아는 타입에만 동작한다. 풀려면 ?Sized를 명시해야 한다."
+        },
+        {
+          "type": "match",
+          "q": "타입과 설명을 연결하세요.",
+          "pairs": [
+            [
+              "!",
+              "값을 가질 수 없고 어떤 타입으로든 변환되는 never 타입"
+            ],
+            [
+              "str",
+              "포인터 뒤에서만 쓸 수 있는 동적 크기 타입"
+            ],
+            [
+              "type Thunk = Box<dyn Fn() + Send + 'static>;",
+              "반복을 줄이는 타입 별칭"
+            ],
+            [
+              "Sized",
+              "컴파일 타임에 크기를 아는 타입에 자동 구현되는 트레이트"
+            ],
+            [
+              "Box<dyn Trait>",
+              "트레이트 객체를 담는 포인터"
+            ]
+          ],
+          "explain": "DST는 포인터 뒤에 두면서 길이 같은 메타데이터를 함께 들고 다닌다."
+        }
+      ]
+    },
+    {
+      "id": "ch20-5",
+      "title": "고급 함수와 클로저",
+      "summary": "함수에 클로저를 넘길 수 있듯이 **이미 정의된 함수**도 넘길 수 있다. 함수는 소문자 `fn` 타입으로 강제 변환되며 이를 **함수 포인터**라 부른다. 클로저 트레이트인 `Fn`과 헷갈리기 쉬우니 구분하자. `fn`은 트레이트가 아니라 **타입**이어서 제네릭 파라미터를 선언하지 않고 그대로 파라미터 타입에 쓸 수 있다.\n\n```rust\nfn double(x: i32) -> i32 {\n    x * 2\n}\n\nfn apply_twice(f: fn(i32) -> i32, value: i32) -> i32 {\n    f(f(value))\n}\n\nfn main() {\n    println!(\"{}\", apply_twice(double, 3)); // 12\n}\n```\n\n함수 포인터는 `Fn`, `FnMut`, `FnOnce` 세 가지를 모두 구현한다. 따라서 클로저를 받는 자리에 함수를 넘기는 것은 언제나 가능하다. 반대로 `fn`만 받는 자리에는 환경을 캡처한 클로저를 넘길 수 없다. 그래서 일반적으로는 제네릭 + 클로저 트레이트 바운드로 쓰는 편이 유연하고, `fn`만 받아야 하는 경우는 클로저 개념이 없는 C 코드와 연동할 때처럼 제한적이다.\n\n튜플 구조체와 열거형 배리언트의 이름은 사실 **생성자 함수**이기도 하다. 그래서 `map`처럼 클로저를 받는 자리에 그대로 넘길 수 있다.\n\n```rust\nstruct Id(u32);\n\nlet ids: Vec<Id> = (1u32..4).map(Id).collect();\n```\n\n`(1u32..4).map(|n| Id(n))`과 완전히 같은 코드로 컴파일되므로 읽기 좋은 쪽을 고르면 된다. 이름이 겹치는 경우에는 `ToString::to_string`처럼 어느 함수인지 밝혀 주어야 한다.\n\n클로저는 트레이트로 표현되기 때문에 **직접 반환할 수 없다**. 보통은 `impl Trait` 문법을 쓴다.\n\n```rust\nfn adder(init: i32) -> impl Fn(i32) -> i32 {\n    move |x| x + init\n}\n```\n\n다만 `impl Trait`은 호출할 때마다 컴파일러가 만들어 내는 **불투명 타입(opaque type)** 이고, 함수마다 서로 다른 불투명 타입이 만들어진다. 그래서 시그니처가 같더라도 서로 다른 두 함수가 반환한 클로저를 같은 `Vec`에 담으려 하면 타입 불일치 에러가 난다.\n\n```rust\nfn plus_one() -> Box<dyn Fn(i32) -> i32> {\n    Box::new(|x| x + 1)\n}\n\nfn adder(init: i32) -> Box<dyn Fn(i32) -> i32> {\n    Box::new(move |x| x + init)\n}\n\nfn main() {\n    let handlers = vec![plus_one(), adder(10)];\n    for h in handlers {\n        println!(\"{}\", h(5));\n    }\n}\n```\n\n`Box<dyn Fn(i32) -> i32>` 트레이트 객체로 감싸면 둘의 타입이 같아져 하나의 컬렉션에 담을 수 있다. 정리하면 반환값이 한 종류일 때는 `impl Fn`이 간단하고 빠르며, 여러 구현을 한데 모아야 할 때는 `Box<dyn Fn>`을 쓴다. 환경의 값을 클로저 안으로 가져가야 한다면 `move`를 잊지 말아야 한다. 그렇지 않으면 함수가 끝날 때 사라질 지역 변수를 빌리게 된다.",
+      "keyPoints": [
+        "fn은 함수 포인터 타입이고 Fn/FnMut/FnOnce는 클로저 트레이트다.",
+        "함수 포인터는 세 클로저 트레이트를 모두 구현하므로 클로저 자리에 함수를 넘길 수 있다.",
+        "튜플 구조체와 열거형 배리언트 이름은 생성자 함수이므로 map에 그대로 넘길 수 있다.",
+        "impl Fn으로 클로저를 반환하면 함수마다 서로 다른 불투명 타입이 만들어진다.",
+        "여러 함수가 반환한 클로저를 한 컬렉션에 담으려면 Box<dyn Fn>을 쓴다."
+      ],
+      "exercises": [
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "fn double(x: i32) -> i32 {\n    x * 2\n}\n\nfn apply_twice(f: fn(i32) -> i32, value: i32) -> i32 {\n    f(f(value))\n}\n\nfn main() {\n    println!(\"{}\", apply_twice(double, 3));\n}",
+          "options": [
+            "12",
+            "컴파일 에러",
+            "6",
+            "9"
+          ],
+          "answer": 0,
+          "explain": "double을 두 번 적용하므로 3 -> 6 -> 12다. 함수 이름은 fn 타입으로 강제 변환되어 인자로 넘어간다."
+        },
+        {
+          "type": "mc",
+          "q": "fn 타입과 Fn 트레이트의 관계로 옳은 것은?",
+          "options": [
+            "둘은 완전히 같은 것이다",
+            "fn은 타입이고, 함수 포인터는 Fn·FnMut·FnOnce를 모두 구현한다",
+            "fn 타입 값은 클로저를 받는 함수에 넘길 수 없다",
+            "fn은 트레이트이고 Fn은 타입이다"
+          ],
+          "answer": 1,
+          "explain": "fn은 타입이라 제네릭 없이 바로 쓸 수 있고, 세 클로저 트레이트를 모두 구현하므로 클로저 자리에 넣을 수 있다."
+        },
+        {
+          "type": "tf",
+          "q": "환경의 변수를 캡처한 클로저는 fn 타입 파라미터에 넘길 수 있다.",
+          "answer": false,
+          "explain": "캡처가 있는 클로저는 함수 포인터로 강제 변환되지 않는다. 캡처가 없는 클로저만 fn으로 변환된다."
+        },
+        {
+          "type": "fill",
+          "q": "튜플 구조체 생성자를 map에 그대로 넘기려면 빈칸에 무엇이 들어갈까?",
+          "code": "struct Id(u32);\n\nfn main() {\n    let ids: Vec<Id> = (1u32..4).map(___).collect();\n    println!(\"{}\", ids.len());\n}",
+          "options": [
+            "Id()",
+            "|Id|",
+            "Id",
+            "Id::new"
+          ],
+          "answer": 2,
+          "explain": "튜플 구조체와 열거형 배리언트의 이름은 그 자체가 생성자 함수라서 클로저 자리에 바로 쓸 수 있다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "fn plus_one() -> impl Fn(i32) -> i32 {\n    |x| x + 1\n}\n\nfn adder(init: i32) -> impl Fn(i32) -> i32 {\n    move |x| x + init\n}\n\nfn main() {\n    let handlers = vec![plus_one(), adder(10)];\n    println!(\"{}\", handlers.len());\n}",
+          "options": [
+            "실행 중 패닉",
+            "2",
+            "1",
+            "컴파일 에러"
+          ],
+          "answer": 3,
+          "explain": "impl Trait은 함수마다 별개의 불투명 타입을 만든다. 시그니처가 같아도 타입이 달라 한 Vec에 담을 수 없다."
+        },
+        {
+          "type": "mc",
+          "q": "위 문제의 코드를 컴파일되게 하려면?",
+          "options": [
+            "두 함수의 반환 타입을 Box<dyn Fn(i32) -> i32>로 바꾸고 Box::new로 감싼다",
+            "move 키워드를 지운다",
+            "Vec 대신 배열을 쓴다",
+            "두 함수의 반환 타입을 fn(i32) -> i32로 바꾼다"
+          ],
+          "answer": 0,
+          "explain": "트레이트 객체로 감싸면 두 클로저가 같은 타입이 되어 한 컬렉션에 담을 수 있다. 캡처가 있어 fn으로는 바꿀 수 없다."
+        },
+        {
+          "type": "order",
+          "q": "초깃값을 캡처하는 클로저를 반환하는 함수를 올바른 순서로 배열하세요.",
+          "items": [
+            "fn adder(init: i32) -> Box<dyn Fn(i32) -> i32> {",
+            "    Box::new(move |x| x + init)",
+            "}"
+          ],
+          "explain": "캡처한 init이 함수보다 오래 살아야 하므로 move가 필요하고, 클로저를 힙에 담아 트레이트 객체로 반환한다. adder(10)(5)는 15가 된다."
+        },
+        {
+          "type": "match",
+          "q": "개념과 설명을 연결하세요.",
+          "pairs": [
+            [
+              "fn(i32) -> i32",
+              "함수 포인터 타입"
+            ],
+            [
+              "impl Fn(i32) -> i32",
+              "함수마다 하나로 정해지는 불투명 반환 타입"
+            ],
+            [
+              "Box<dyn Fn(i32) -> i32>",
+              "서로 다른 클로저를 같은 타입으로 다루는 트레이트 객체"
+            ],
+            [
+              "move",
+              "캡처한 값의 소유권을 클로저로 옮김"
+            ],
+            [
+              "Status::Value",
+              "열거형 배리언트 생성자 함수"
+            ]
+          ],
+          "explain": "반환할 클로저가 한 종류면 impl Fn, 여러 종류를 섞어야 하면 Box<dyn Fn>이 답이다."
+        }
+      ]
+    },
+    {
+      "id": "ch20-6",
+      "title": "매크로: 선언적 매크로와 절차적 매크로",
+      "summary": "매크로는 **코드를 생성하는 코드**, 즉 메타프로그래밍 수단이다. 러스트의 매크로는 `macro_rules!`로 만드는 **선언적 매크로**와 세 종류의 **절차적 매크로**(커스텀 derive, 애트리뷰트 유사, 함수 유사)로 나뉜다.\n\n함수와 무엇이 다를까? 함수는 파라미터의 개수와 타입을 시그니처에 못박아야 하지만 매크로는 인자 개수를 자유롭게 받는다. `println!(\"hi\")`와 `println!(\"hi {}\", name)`이 모두 되는 이유다. 또 매크로는 컴파일러가 의미를 해석하기 **전에** 펼쳐지므로 트레이트 구현 같은 코드를 만들어 낼 수 있다. 대신 러스트 코드를 쓰는 러스트 코드라 읽고 유지하기 어렵고, 함수와 달리 **호출 지점보다 먼저 정의되거나 스코프로 가져와져야** 한다.\n\n선언적 매크로는 `match`와 닮았다. 다만 비교 대상이 값이 아니라 **소스 코드의 구조**다. 패턴이 맞으면 짝지어진 코드가 호출 자리를 대체한다.\n\n```rust\n#[macro_export]\nmacro_rules! total {\n    ( $( $x:expr ),* ) => {\n        {\n            let mut sum = 0;\n            $(\n                sum += $x;\n            )*\n            sum\n        }\n    };\n}\n\nfn main() {\n    println!(\"{}\", total!(1, 2, 3)); // 6\n}\n```\n\n패턴 문법을 뜯어보면, `$`는 매크로 변수를 뜻하고 `$x:expr`은 임의의 러스트 표현식을 잡아 `$x`라는 이름을 붙인다. 바깥의 `$( ... ),*`는 \"쉼표로 구분된 0개 이상의 반복\"을 의미한다. 본문에서도 `$( ... )*`로 감싼 부분이 매칭된 횟수만큼 생성되고 `$x`는 각 표현식으로 치환된다. `#[macro_export]`는 크레이트를 가져다 쓰는 쪽에서도 이 매크로를 볼 수 있게 한다.\n\n**절차적 매크로**는 패턴 매칭이 아니라 함수처럼 동작한다. 입력으로 `TokenStream`을 받아 조작한 뒤 `TokenStream`을 내놓는다. 절차적 매크로는 `proc-macro = true`로 설정된 전용 크레이트에 있어야 한다.\n\n```rust\nuse proc_macro::TokenStream;\nuse quote::quote;\n\n#[proc_macro_derive(HelloMacro)]\npub fn hello_macro_derive(input: TokenStream) -> TokenStream {\n    let ast = syn::parse(input).unwrap();\n    impl_hello_macro(&ast)\n}\n\nfn impl_hello_macro(ast: &syn::DeriveInput) -> TokenStream {\n    let name = &ast.ident;\n    quote! {\n        impl HelloMacro for #name {\n            fn hello_macro() {\n                println!(\"안녕, 나는 {}!\", stringify!(#name));\n            }\n        }\n    }\n    .into()\n}\n```\n\n여기서 `syn`은 토큰을 파싱해 `DeriveInput` 같은 다루기 쉬운 구조체로 바꾸고, `quote`는 그 반대로 러스트 코드를 다시 토큰으로 만든다. `quote!` 안의 `#name`은 변수 값으로 치환되는 템플릿 문법이다. `stringify!`는 표현식을 컴파일 타임에 문자열 리터럴로 바꾸는 내장 매크로로, 값을 계산하는 `format!`과 다르다. `proc_macro_derive`는 `Result`를 반환할 수 없어 실패 시 패닉해야 하므로 실제 코드에서는 `expect`로 친절한 메시지를 남긴다.\n\n**애트리뷰트 유사 매크로**는 `#[route(GET, \"/\")]`처럼 새로운 애트리뷰트를 만든다. 서명은 `pub fn route(attr: TokenStream, item: TokenStream) -> TokenStream`이며, 첫 인자는 애트리뷰트 내용, 둘째는 애트리뷰트가 붙은 항목 전체다. derive와 달리 구조체·열거형뿐 아니라 함수 같은 다른 항목에도 붙일 수 있다.\n\n**함수 유사 매크로**는 `sql!(SELECT * FROM posts)`처럼 호출처럼 보이지만, `macro_rules!`의 match 문법으로는 불가능한 복잡한 처리를 할 수 있다. `#[proc_macro]`를 붙이고 괄호 안의 토큰을 받아 생성할 코드를 반환한다.",
+      "keyPoints": [
+        "매크로는 인자 개수를 가변으로 받고 컴파일 전에 펼쳐지므로 트레이트 구현 같은 코드를 생성할 수 있다.",
+        "macro_rules!는 값이 아니라 소스 코드 구조를 패턴 매칭하며 $x:expr과 $(...),*로 반복을 표현한다.",
+        "절차적 매크로는 TokenStream을 받아 TokenStream을 반환하며 proc-macro = true 크레이트에 따로 두어야 한다.",
+        "syn은 토큰을 구문 트리로 파싱하고 quote는 구문 트리를 다시 코드로 만든다.",
+        "절차적 매크로는 커스텀 derive, 애트리뷰트 유사, 함수 유사 세 종류이며 각각 proc_macro_derive, proc_macro_attribute, proc_macro를 쓴다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "매크로가 함수로는 할 수 없는 일을 하는 이유로 옳은 것은?",
+          "options": [
+            "매크로는 런타임에 실행되어 더 빠르기 때문",
+            "매크로는 가변 개수의 인자를 받고 컴파일 전에 펼쳐져 코드를 생성할 수 있기 때문",
+            "매크로만 제네릭을 쓸 수 있기 때문",
+            "함수는 트레이트를 구현할 수 없기 때문"
+          ],
+          "answer": 1,
+          "explain": "함수는 파라미터 개수와 타입이 고정이고 런타임에 호출된다. 매크로는 확장 시점이 컴파일 전이라 trait impl까지 만들어 낼 수 있다."
+        },
+        {
+          "type": "fill",
+          "q": "임의의 러스트 표현식을 잡으려면 빈칸에 어떤 조각 지정자가 들어갈까?",
+          "code": "macro_rules! total {\n    ( $( $x:___ ),* ) => {\n        { let mut sum = 0; $( sum += $x; )* sum }\n    };\n}",
+          "options": [
+            "stmt",
+            "ident",
+            "expr",
+            "ty"
+          ],
+          "answer": 2,
+          "explain": "expr은 임의의 표현식에 매칭된다. ident는 식별자, ty는 타입에 매칭되는 지정자다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는?",
+          "code": "macro_rules! total {\n    ( $( $x:expr ),* ) => {\n        {\n            let mut sum = 0;\n            $(\n                sum += $x;\n            )*\n            sum\n        }\n    };\n}\n\nfn main() {\n    println!(\"{}\", total!(4, 5, 6));\n}",
+          "options": [
+            "컴파일 에러",
+            "0",
+            "456",
+            "15"
+          ],
+          "answer": 3,
+          "explain": "패턴이 세 번 매칭되어 sum += 4; sum += 5; sum += 6; 이 생성된다. 결과는 15다."
+        },
+        {
+          "type": "tf",
+          "q": "절차적 매크로는 일반 함수처럼 아무 크레이트에나 정의해도 된다.",
+          "answer": false,
+          "explain": "절차적 매크로는 Cargo.toml에 proc-macro = true를 설정한 전용 크레이트에 있어야 한다."
+        },
+        {
+          "type": "mc",
+          "q": "커스텀 derive 매크로에서 syn과 quote의 역할은?",
+          "options": [
+            "syn은 TokenStream을 구문 트리로 파싱하고 quote는 구문 트리를 코드로 되돌린다",
+            "둘 다 런타임에 타입 이름을 알아내는 리플렉션 도구다",
+            "syn은 테스트용, quote는 문서용 크레이트다",
+            "syn은 코드를 생성하고 quote는 파싱한다"
+          ],
+          "answer": 0,
+          "explain": "syn::parse가 TokenStream을 DeriveInput 같은 구조체로 바꾸고, quote!가 만들어 낸 결과를 into()로 다시 TokenStream으로 변환한다."
+        },
+        {
+          "type": "order",
+          "q": "커스텀 derive 매크로의 뼈대를 올바른 순서로 배열하세요.",
+          "items": [
+            "#[proc_macro_derive(HelloMacro)]",
+            "pub fn hello_macro_derive(input: TokenStream) -> TokenStream {",
+            "    let ast = syn::parse(input).unwrap();",
+            "    impl_hello_macro(&ast)",
+            "}"
+          ],
+          "explain": "애트리뷰트가 매크로 종류를 정하고, 바깥 함수는 파싱만 담당한 뒤 실제 코드 생성은 내부 함수에 맡기는 것이 관례다."
+        },
+        {
+          "type": "mc",
+          "q": "#[route(GET, \"/\")] 같은 애트리뷰트 유사 매크로의 함수 시그니처는?",
+          "options": [
+            "pub fn route(input: TokenStream) -> TokenStream",
+            "pub fn route(attr: TokenStream, item: TokenStream) -> TokenStream",
+            "pub fn route(attr: &str, item: TokenStream) -> String",
+            "pub fn route() -> TokenStream"
+          ],
+          "answer": 1,
+          "explain": "첫 번째 인자는 애트리뷰트 안의 내용(GET, \"/\"), 두 번째는 애트리뷰트가 붙은 항목 전체를 담는다."
+        },
+        {
+          "type": "match",
+          "q": "매크로 종류와 표시 방법을 연결하세요.",
+          "pairs": [
+            [
+              "macro_rules!",
+              "패턴 매칭으로 코드를 대체하는 선언적 매크로"
+            ],
+            [
+              "#[proc_macro_derive(Name)]",
+              "derive로 트레이트 구현을 생성하는 매크로"
+            ],
+            [
+              "#[proc_macro_attribute]",
+              "새로운 애트리뷰트를 정의하는 매크로"
+            ],
+            [
+              "#[proc_macro]",
+              "sql!(...)처럼 호출 형태로 쓰는 매크로"
+            ],
+            [
+              "stringify!",
+              "표현식을 컴파일 타임에 문자열 리터럴로 바꾸는 내장 매크로"
+            ]
+          ],
+          "explain": "절차적 매크로 세 종류는 붙이는 애트리뷰트만 다를 뿐 TokenStream을 받아 TokenStream을 내놓는 구조는 같다."
+        }
+      ]
+    }
+  ]
+}

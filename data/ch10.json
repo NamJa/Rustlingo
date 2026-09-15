@@ -1,0 +1,673 @@
+{
+  "id": "ch10",
+  "number": 10,
+  "title": "제네릭, 트레이트, 라이프타임",
+  "titleEn": "Generic Types, Traits, and Lifetimes",
+  "emoji": "🧬",
+  "pages": "227-262",
+  "intro": "타입만 다르고 내용은 똑같은 코드를 제네릭으로 한 번만 쓰는 법을 배웁니다. 그다음 트레이트로 \"이 타입은 이런 일을 할 수 있다\"를 약속하게 만들고, 트레이트 바운드로 제네릭에 필요한 능력을 요구합니다. 마지막으로 라이프타임 표기를 통해 참조가 가리키는 값보다 오래 살아남지 못하도록 컴파일러가 검사하게 만드는 방법을 익힙니다.",
+  "lessons": [
+    {
+      "id": "ch10-1",
+      "title": "제네릭 함수로 중복 없애기",
+      "summary": "코드에서 중복을 없애는 가장 기본적인 도구는 함수입니다. 같은 계산을 값만 바꿔 여러 번 한다면 그 계산을 함수로 뽑고 값을 매개변수로 넘기면 되죠. 그런데 **로직은 완전히 같은데 다루는 타입만 다른** 경우에는 함수만으로는 부족합니다. 이때 필요한 것이 제네릭입니다.\n\n예를 들어 슬라이스에서 가장 작은 값을 찾는 함수를 `i64`용과 `char`용으로 따로 만들면 이름과 타입만 다르고 본문은 글자 하나까지 똑같습니다.\n\n```rust\nfn smallest_i64(xs: &[i64]) -> &i64 {\n    let mut m = &xs[0];\n    for x in xs {\n        if x < m {\n            m = x;\n        }\n    }\n    m\n}\n\nfn smallest_char(xs: &[char]) -> &char {\n    let mut m = &xs[0];\n    for x in xs {\n        if x < m {\n            m = x;\n        }\n    }\n    m\n}\n```\n\n이 둘을 하나로 합치려면 \"타입 자리에 들어갈 이름\"을 하나 만들어야 합니다. 값 매개변수를 쓰기 전에 시그니처에 이름을 적듯이, 타입 매개변수도 쓰기 전에 선언해야 합니다. 선언 위치는 함수 이름과 괄호 사이의 꺾쇠 `<>` 안입니다. 이름은 아무거나 써도 되지만 관례상 대문자 카멜케이스의 짧은 이름을 쓰고, 가장 흔한 선택이 `T`입니다.\n\n```rust\nfn smallest<T>(xs: &[T]) -> &T {\n```\n\n이 시그니처는 \"`smallest`는 어떤 타입 `T`에 대해 제네릭하며, `T`의 슬라이스를 받아 같은 `T`에 대한 참조를 돌려준다\"로 읽습니다.\n\n하지만 본문을 그대로 옮기면 아직 컴파일되지 않습니다. `T`에는 세상의 모든 타입이 들어올 수 있는데, 그중에는 `<`로 비교할 수 없는 타입도 있기 때문입니다. 컴파일러는 `binary operation < cannot be applied to type &T` 같은 에러(E0369)를 내면서 **`T`를 비교 가능한 타입으로 제한하라**고 알려줍니다.\n\n해결책은 타입 매개변수에 트레이트 바운드를 붙이는 것입니다. 표준 라이브러리의 `PartialOrd`는 값끼리 대소를 비교할 수 있는 타입이 구현하는 트레이트이고, `i64`와 `char` 모두 이를 구현합니다.\n\n```rust\nfn smallest<T: PartialOrd>(xs: &[T]) -> &T {\n    let mut m = &xs[0];\n    for x in xs {\n        if x < m {\n            m = x;\n        }\n    }\n    m\n}\n\nfn main() {\n    let nums = vec![9, 2, 7, 4];\n    let letters = vec!['q', 'b', 'z'];\n\n    println!(\"{}\", smallest(&nums));\n    println!(\"{}\", smallest(&letters));\n}\n```\n\n이제 함수 하나로 두 타입을 모두 처리합니다. 핵심은 \"제네릭은 무엇이든 받는다\"가 아니라 **\"필요한 능력을 명시하면 그 능력을 가진 타입은 모두 받는다\"**라는 점입니다. 컴파일러는 호출 지점마다 그 조건이 만족되는지 미리 확인하므로, 잘못된 타입으로 부르면 실행 전에 에러가 납니다.",
+      "keyPoints": [
+        "타입 매개변수는 함수 이름 뒤 `<>` 안에 먼저 선언한 다음에 사용한다.",
+        "`fn smallest<T>(xs: &[T]) -> &T`는 T의 슬라이스를 받아 같은 T 참조를 돌려준다는 뜻이다.",
+        "본문에서 `<`나 `>`를 쓰려면 `T: PartialOrd` 같은 트레이트 바운드가 필요하다.",
+        "제네릭은 중복 제거 수단이며, 필요한 능력을 바운드로 못 박아야 컴파일된다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "다음 함수가 컴파일되지 않는 이유는 무엇인가요?",
+          "code": "fn smallest<T>(xs: &[T]) -> &T {\n    let mut m = &xs[0];\n    for x in xs {\n        if x < m {\n            m = x;\n        }\n    }\n    m\n}",
+          "options": [
+            "슬라이스를 참조로 받았기 때문에 값을 반환할 수 없다",
+            "T가 비교 가능하다는 보장이 없어 `<` 연산을 쓸 수 없다",
+            "for 루프에서 슬라이스의 소유권이 이동하기 때문이다",
+            "반환 타입에 라이프타임 표기가 빠졌기 때문이다"
+          ],
+          "answer": 1,
+          "explain": "T에는 어떤 타입이든 올 수 있으므로 컴파일러는 대소 비교가 가능한지 알 수 없습니다. `T: PartialOrd` 바운드를 붙여야 합니다."
+        },
+        {
+          "type": "fill",
+          "q": "빈칸에 들어갈 트레이트 이름은 무엇인가요?",
+          "code": "fn smallest<T: ___>(xs: &[T]) -> &T {\n    let mut m = &xs[0];\n    for x in xs {\n        if x < m { m = x; }\n    }\n    m\n}",
+          "options": [
+            "Display",
+            "Copy",
+            "Clone",
+            "PartialOrd"
+          ],
+          "answer": 3,
+          "explain": "`<` 비교를 허용하는 트레이트는 PartialOrd입니다. 출력용은 Display, 복사는 Copy로 목적이 다릅니다."
+        },
+        {
+          "type": "tf",
+          "q": "제네릭 타입 매개변수의 이름은 반드시 `T`여야 한다.",
+          "answer": false,
+          "explain": "`T`는 널리 쓰이는 관례일 뿐이며, `Item`이나 `K`, `V`처럼 의미가 드러나는 이름을 써도 됩니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 출력은 무엇인가요?",
+          "code": "fn first<T>(xs: &[T]) -> &T {\n    &xs[0]\n}\n\nfn main() {\n    let words = vec![\"ha\", \"na\", \"da\"];\n    println!(\"{}\", first(&words));\n}",
+          "options": [
+            "ha",
+            "da",
+            "컴파일 에러",
+            "패닉"
+          ],
+          "answer": 0,
+          "explain": "인덱싱만 하고 비교는 하지 않으므로 추가 바운드 없이 컴파일되며, 첫 원소 \"ha\"가 출력됩니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는 무엇인가요?",
+          "code": "fn pair_up<T>(a: T, b: T) -> (T, T) {\n    (a, b)\n}\n\nfn main() {\n    let p = pair_up(1, 2.5);\n    println!(\"{:?}\", p);\n}",
+          "options": [
+            "(1, 2.5)",
+            "(1.0, 2.5)",
+            "패닉",
+            "컴파일 에러"
+          ],
+          "answer": 3,
+          "explain": "두 매개변수가 같은 `T`로 선언돼 있어 정수와 부동소수점을 함께 넘길 수 없습니다. 타입이 달라야 한다면 `<T, U>`로 나눠야 합니다."
+        },
+        {
+          "type": "order",
+          "q": "슬라이스에서 가장 큰 값을 찾는 제네릭 함수가 되도록 순서를 맞추세요.",
+          "items": [
+            "fn biggest<T: PartialOrd>(xs: &[T]) -> &T {",
+            "    let mut m = &xs[0];",
+            "    for x in xs { if x > m { m = x; } }",
+            "    m",
+            "}"
+          ],
+          "explain": "시그니처에서 타입 매개변수와 바운드를 선언하고, 첫 원소를 기준값으로 잡은 뒤 순회하며 더 큰 값으로 갱신하고 마지막에 반환합니다."
+        },
+        {
+          "type": "match",
+          "q": "각 표기와 의미를 연결하세요.",
+          "pairs": [
+            [
+              "<T>",
+              "함수 이름 뒤에서 타입 매개변수를 선언하는 자리"
+            ],
+            [
+              "&[T]",
+              "T 값들이 들어 있는 슬라이스에 대한 참조"
+            ],
+            [
+              "T: PartialOrd",
+              "대소 비교가 가능한 타입만 허용하는 제약"
+            ],
+            [
+              "E0369",
+              "해당 타입에 그 연산자를 쓸 수 없을 때 나는 에러"
+            ]
+          ],
+          "explain": "타입 매개변수 선언, 매개변수 타입, 트레이트 바운드, 그리고 바운드가 없을 때 만나는 에러 코드입니다."
+        }
+      ]
+    },
+    {
+      "id": "ch10-2",
+      "title": "구조체·열거형·메서드의 제네릭과 단형화",
+      "summary": "제네릭은 함수에만 쓰는 것이 아닙니다. 구조체와 열거형도 필드에 들어갈 타입을 매개변수로 남겨 둘 수 있고, 메서드 정의에도 쓸 수 있습니다.\n\n구조체에서는 이름 바로 뒤 꺾쇠 안에 타입 매개변수를 선언한 다음, 필드 타입 자리에 그 이름을 씁니다.\n\n```rust\nstruct Pair<T> {\n    first: T,\n    second: T,\n}\n\nfn main() {\n    let ints = Pair { first: 3, second: 9 };\n    let floats = Pair { first: 1.5, second: 0.5 };\n}\n```\n\n주의할 점은 `Pair<T>`처럼 타입 매개변수가 하나면 **두 필드의 타입이 반드시 같아야 한다**는 것입니다. `Pair { first: 3, second: 0.5 }`는 타입 불일치로 컴파일되지 않습니다. 서로 다른 타입을 담고 싶으면 매개변수를 늘리면 됩니다.\n\n```rust\nstruct Slot<K, V> {\n    key: K,\n    value: V,\n}\n```\n\n원한다면 매개변수를 몇 개든 둘 수 있지만, 많아질수록 읽기 어려워집니다. 제네릭이 너무 많이 필요하다면 타입을 더 작은 조각으로 쪼개라는 신호일 수 있습니다.\n\n열거형도 마찬가지입니다. 이미 익숙한 `Option<T>`와 `Result<T, E>`가 표준 라이브러리의 대표적인 제네릭 열거형입니다. \"값이 있을 수도 없을 수도 있다\", \"성공 값 아니면 실패 값이다\"라는 개념을 타입에 상관없이 표현할 수 있게 해 주죠.\n\n메서드를 정의할 때는 `impl` 뒤에도 타입 매개변수를 선언해야 합니다. 그래야 `Pair<T>`의 `T`가 구체 타입이 아니라 제네릭이라는 것을 컴파일러가 압니다.\n\n```rust\nimpl<T> Pair<T> {\n    fn first(&self) -> &T {\n        &self.first\n    }\n}\n```\n\n반대로 **특정 구체 타입일 때만** 메서드를 붙일 수도 있습니다. 이때는 `impl` 뒤에 선언할 것이 없습니다.\n\n```rust\nimpl Pair<f64> {\n    fn mean(&self) -> f64 {\n        (self.first + self.second) / 2.0\n    }\n}\n```\n\n이렇게 하면 `Pair<f64>`에만 `mean`이 생기고, `Pair<i32>`에는 존재하지 않습니다. 또 메서드는 구조체와 무관한 자기만의 타입 매개변수를 추가로 가질 수도 있습니다.\n\n```rust\nstruct Wrapper<A, B> {\n    left: A,\n    right: B,\n}\n\nimpl<A, B> Wrapper<A, B> {\n    fn merge<C, D>(self, other: Wrapper<C, D>) -> Wrapper<A, D> {\n        Wrapper { left: self.left, right: other.right }\n    }\n}\n```\n\n여기서 `A`와 `B`는 구조체 정의에 속하므로 `impl` 뒤에, `C`와 `D`는 이 메서드에서만 쓰이므로 `fn merge` 뒤에 선언합니다.\n\n마지막으로 성능 이야기입니다. 제네릭을 쓴다고 프로그램이 느려지지 않습니다. 컴파일러가 **단형화(monomorphization)**를 수행하기 때문입니다. 컴파일 시점에 제네릭 코드가 실제로 어떤 구체 타입으로 호출되는지 모두 찾아내고, 그 타입마다 전용 코드를 따로 만들어 둡니다. 즉 우리가 손으로 `smallest_i64`와 `smallest_char`를 복사해 쓴 것과 같은 결과물이 나오므로 런타임 비용이 0입니다. 대신 생성되는 코드의 양은 늘어날 수 있습니다.",
+      "keyPoints": [
+        "구조체와 열거형도 이름 뒤 `<>`에 타입 매개변수를 선언해 필드 타입을 일반화한다.",
+        "타입 매개변수가 하나면 그 매개변수를 쓴 모든 필드는 같은 타입이어야 한다.",
+        "`impl<T> Pair<T>`는 모든 T에, `impl Pair<f64>`는 f64일 때만 메서드를 추가한다.",
+        "메서드는 구조체와 별개인 자기만의 타입 매개변수를 `fn` 뒤에 선언할 수 있다.",
+        "단형화 덕분에 제네릭은 런타임 성능을 깎지 않는다."
+      ],
+      "exercises": [
+        {
+          "type": "output",
+          "q": "이 코드의 결과는 무엇인가요?",
+          "code": "struct Point<T> {\n    x: T,\n    y: T,\n}\n\nfn main() {\n    let p = Point { x: 3, y: 1.5 };\n    println!(\"{}\", p.x);\n}",
+          "options": [
+            "3",
+            "1.5",
+            "컴파일 에러",
+            "패닉"
+          ],
+          "answer": 2,
+          "explain": "`Point<T>`는 x와 y가 같은 타입이어야 합니다. 정수와 실수를 섞으려면 `Point<T, U>`처럼 매개변수를 두 개 둬야 합니다."
+        },
+        {
+          "type": "mc",
+          "q": "다음 impl 블록에 대한 설명으로 옳은 것은?",
+          "code": "impl Pair<f64> {\n    fn mean(&self) -> f64 {\n        (self.first + self.second) / 2.0\n    }\n}",
+          "options": [
+            "모든 `Pair<T>`에 mean 메서드가 생긴다",
+            "f64를 제외한 모든 타입에 mean이 생긴다",
+            "impl 뒤에 `<T>`가 없으므로 컴파일되지 않는다",
+            "`Pair<f64>`에만 mean 메서드가 생긴다"
+          ],
+          "answer": 3,
+          "explain": "구체 타입을 지정한 impl 블록은 그 타입에 대해서만 적용됩니다. 구체 타입을 쓸 때는 impl 뒤에 선언할 매개변수가 없습니다."
+        },
+        {
+          "type": "fill",
+          "q": "모든 타입 T에 대해 메서드를 정의하려면 빈칸에 무엇이 들어가야 하나요?",
+          "code": "impl ___ Pair<T> {\n    fn first(&self) -> &T {\n        &self.first\n    }\n}",
+          "options": [
+            "<T>",
+            "T",
+            "for T",
+            "<f64>"
+          ],
+          "answer": 0,
+          "explain": "impl 뒤에 `<T>`를 선언해야 `Pair<T>`의 T가 구체 타입이 아니라 제네릭이라는 사실을 컴파일러가 알 수 있습니다."
+        },
+        {
+          "type": "tf",
+          "q": "제네릭을 쓰면 런타임에 타입을 확인해야 하므로 구체 타입을 직접 쓴 코드보다 느리다.",
+          "answer": false,
+          "explain": "컴파일 시점의 단형화로 타입별 전용 코드가 생성되므로 런타임 비용이 추가되지 않습니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 출력은 무엇인가요?",
+          "code": "struct Wrapper<A, B> {\n    left: A,\n    right: B,\n}\n\nimpl<A, B> Wrapper<A, B> {\n    fn merge<C, D>(self, other: Wrapper<C, D>) -> Wrapper<A, D> {\n        Wrapper { left: self.left, right: other.right }\n    }\n}\n\nfn main() {\n    let a = Wrapper { left: 7, right: \"x\" };\n    let b = Wrapper { left: 'z', right: 2.5 };\n    let c = a.merge(b);\n    println!(\"{} {}\", c.left, c.right);\n}",
+          "options": [
+            "7 x",
+            "7 2.5",
+            "z 2.5",
+            "컴파일 에러"
+          ],
+          "answer": 1,
+          "explain": "left는 self에서, right는 인자에서 가져오므로 결과는 `Wrapper<i32, f64>`이고 7과 2.5가 출력됩니다."
+        },
+        {
+          "type": "order",
+          "q": "제네릭 구조체와 그 메서드를 정의하는 코드가 되도록 순서를 맞추세요.",
+          "items": [
+            "struct Stack<T> {",
+            "    items: Vec<T>,",
+            "}",
+            "impl<T> Stack<T> {",
+            "    fn push(&mut self, item: T) { self.items.push(item); }"
+          ],
+          "explain": "구조체 정의를 먼저 닫은 뒤 impl 블록을 열고, impl 뒤에 `<T>`를 선언해야 `Stack<T>`에 메서드를 붙일 수 있습니다."
+        },
+        {
+          "type": "match",
+          "q": "각 개념과 설명을 연결하세요.",
+          "pairs": [
+            [
+              "Option<T>",
+              "값이 있을 수도 없을 수도 있음을 나타내는 제네릭 열거형"
+            ],
+            [
+              "Result<T, E>",
+              "성공 값과 실패 값을 각각 다른 타입으로 담는 열거형"
+            ],
+            [
+              "단형화",
+              "컴파일 시점에 구체 타입별 코드를 생성하는 과정"
+            ],
+            [
+              "impl<T> Point<T>",
+              "모든 T에 대해 적용되는 메서드 정의"
+            ]
+          ],
+          "explain": "표준 라이브러리의 대표 제네릭 열거형 두 개와, 성능을 지켜 주는 단형화, 그리고 제네릭 impl 블록의 의미입니다."
+        }
+      ]
+    },
+    {
+      "id": "ch10-3",
+      "title": "트레이트 정의하고 구현하기",
+      "summary": "트레이트는 **어떤 타입이 할 수 있는 일**을 묶어서 이름 붙인 것입니다. 서로 다른 타입이라도 같은 메서드를 호출할 수 있다면 같은 동작을 공유한다고 볼 수 있고, 그 동작의 목록을 선언하는 것이 트레이트 정의입니다. 다른 언어의 인터페이스와 비슷하지만 세부 규칙은 다릅니다.\n\n정의는 `trait` 키워드와 이름, 그리고 중괄호 안의 메서드 시그니처로 이루어집니다. 본문 대신 세미콜론으로 끝내면 \"구현하는 쪽에서 반드시 채워야 하는 메서드\"라는 뜻입니다.\n\n```rust\npub trait Greet {\n    fn name(&self) -> String;\n}\n```\n\n특정 타입에 트레이트를 구현할 때는 `impl 트레이트이름 for 타입이름` 형태를 씁니다. 블록 안에는 트레이트가 요구한 시그니처를 그대로 적고, 세미콜론 대신 중괄호로 본문을 채웁니다.\n\n```rust\npub struct Cat {\n    pub nickname: String,\n}\n\npub struct Robot {\n    pub serial: u32,\n}\n\nimpl Greet for Cat {\n    fn name(&self) -> String {\n        self.nickname.clone()\n    }\n}\n\nimpl Greet for Robot {\n    fn name(&self) -> String {\n        format!(\"unit-{}\", self.serial)\n    }\n}\n```\n\n이제 두 타입 모두에 `name()`을 호출할 수 있습니다. 다른 크레이트에서 이 메서드를 쓰려면 타입뿐 아니라 **트레이트도 스코프로 가져와야** 한다는 점이 일반 메서드와 다릅니다.\n\n여기에는 중요한 제약이 하나 있습니다. 트레이트나 타입 중 **적어도 하나는 내 크레이트의 것**이어야 구현할 수 있습니다. 내가 만든 타입에 표준 라이브러리의 `Display`를 구현하는 것은 되고, 내가 만든 트레이트를 `Vec<T>`에 구현하는 것도 됩니다. 하지만 `Vec<T>`에 `Display`를 구현하는 것은 둘 다 남의 것이라 불가능합니다. 이를 고아 규칙(orphan rule)이라 부르며, 서로 다른 크레이트가 같은 타입에 같은 트레이트를 중복 구현해 충돌하는 일을 막아 줍니다.\n\n트레이트 메서드에는 기본 구현을 줄 수도 있습니다. 시그니처 뒤에 본문을 적어 두면, 구현하는 타입은 그대로 쓰거나 필요할 때만 덮어쓰면 됩니다.\n\n```rust\npub trait Greet {\n    fn name(&self) -> String;\n\n    fn hello(&self) -> String {\n        format!(\"안녕하세요, {}!\", self.name())\n    }\n}\n```\n\n기본 구현이 있는 메서드만 남았다면 구현 블록을 `impl Greet for Cat {}`처럼 비워 두어도 됩니다. 위 예처럼 **기본 구현이 같은 트레이트의 다른 메서드를 호출**할 수 있다는 점이 특히 유용합니다. 구현자는 `name` 하나만 채우면 `hello`를 공짜로 얻습니다.\n\n한 가지 제약은, 어떤 메서드를 직접 덮어쓴 구현 안에서는 그 메서드의 기본 구현을 다시 불러올 수 없다는 것입니다.",
+      "keyPoints": [
+        "트레이트는 여러 타입이 공유하는 동작의 시그니처를 모아 놓은 것이다.",
+        "구현은 `impl 트레이트 for 타입` 형태이며, 트레이트 메서드를 쓰려면 트레이트도 스코프에 있어야 한다.",
+        "고아 규칙: 트레이트나 타입 중 하나는 내 크레이트의 것이어야 구현할 수 있다.",
+        "기본 구현을 두면 구현자가 일부만 채워도 되고, 기본 구현은 같은 트레이트의 다른 메서드를 호출할 수 있다.",
+        "덮어쓴 구현 안에서 원래의 기본 구현을 호출할 수는 없다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "트레이트 메서드에 기본 구현을 주는 방법으로 옳은 것은?",
+          "options": [
+            "시그니처 뒤를 세미콜론으로 끝낸다",
+            "`default` 키워드를 메서드 앞에 붙인다",
+            "impl 블록에서 `#[default]` 속성을 단다",
+            "시그니처 뒤에 중괄호로 본문을 적는다"
+          ],
+          "answer": 3,
+          "explain": "세미콜론으로 끝내면 구현이 필수인 메서드이고, 본문을 적으면 그것이 기본 구현이 됩니다. Rust에는 default 키워드가 없습니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 출력은 무엇인가요?",
+          "code": "trait Greet {\n    fn name(&self) -> String;\n\n    fn hello(&self) -> String {\n        format!(\"hi, {}\", self.name())\n    }\n}\n\nstruct Robot;\n\nimpl Greet for Robot {\n    fn name(&self) -> String {\n        String::from(\"R2\")\n    }\n}\n\nfn main() {\n    println!(\"{}\", Robot.hello());\n}",
+          "options": [
+            "hi, R2",
+            "hi, Robot",
+            "컴파일 에러: hello가 구현되지 않음",
+            "R2"
+          ],
+          "answer": 0,
+          "explain": "hello는 기본 구현을 그대로 쓰며, 그 안에서 우리가 구현한 name을 호출하므로 \"hi, R2\"가 출력됩니다."
+        },
+        {
+          "type": "tf",
+          "q": "내 크레이트 안에서 표준 라이브러리의 `Display` 트레이트를 표준 라이브러리의 `Vec<T>`에 구현할 수 있다.",
+          "answer": false,
+          "explain": "트레이트와 타입이 모두 외부 것이므로 고아 규칙에 걸립니다. 둘 중 하나는 내 크레이트 소속이어야 합니다."
+        },
+        {
+          "type": "fill",
+          "q": "Cat 타입에 Greet 트레이트를 구현하려면 빈칸에 무엇이 들어가야 하나요?",
+          "code": "impl ___ for Cat {\n    fn name(&self) -> String {\n        self.nickname.clone()\n    }\n}",
+          "options": [
+            "Cat",
+            "Greet",
+            "trait Greet",
+            "Greet<Cat>"
+          ],
+          "answer": 1,
+          "explain": "`impl 트레이트이름 for 타입이름` 순서이므로 앞에는 트레이트 이름인 Greet이 옵니다."
+        },
+        {
+          "type": "order",
+          "q": "Square에 Area 트레이트를 구현하는 코드가 되도록 순서를 맞추세요.",
+          "items": [
+            "impl Area for Square {",
+            "    fn area(&self) -> f64 {",
+            "        self.side * self.side",
+            "    }",
+            "}"
+          ],
+          "explain": "impl 헤더를 열고 트레이트가 요구한 시그니처를 그대로 적은 뒤 본문을 채우고 블록을 닫습니다."
+        },
+        {
+          "type": "mc",
+          "q": "`impl Summary for NewsArticle {}`처럼 빈 구현 블록을 쓸 수 있는 경우는 언제인가요?",
+          "options": [
+            "트레이트에 메서드가 하나도 없을 때만",
+            "구현이 필수인 메서드가 없고 모두 기본 구현을 가질 때",
+            "구조체에 필드가 없을 때",
+            "어떤 경우든 항상 가능하다"
+          ],
+          "answer": 1,
+          "explain": "기본 구현이 없는 메서드는 반드시 채워야 합니다. 모든 메서드에 기본 구현이 있으면 블록을 비워 기본 동작을 그대로 쓸 수 있습니다."
+        },
+        {
+          "type": "match",
+          "q": "각 용어와 설명을 연결하세요.",
+          "pairs": [
+            [
+              "trait",
+              "여러 타입이 공유할 메서드 시그니처를 묶는 키워드"
+            ],
+            [
+              "impl Greet for Cat",
+              "특정 타입에 트레이트 동작을 구현하는 블록"
+            ],
+            [
+              "기본 구현",
+              "구현자가 덮어쓰지 않으면 그대로 쓰이는 메서드 본문"
+            ],
+            [
+              "고아 규칙",
+              "트레이트와 타입이 둘 다 외부 것이면 구현을 막는 규칙"
+            ]
+          ],
+          "explain": "트레이트 정의, 구현, 기본 구현, 그리고 구현 가능 범위를 제한하는 규칙입니다."
+        }
+      ]
+    },
+    {
+      "id": "ch10-4",
+      "title": "트레이트 바운드로 제네릭 제한하기",
+      "summary": "트레이트를 정의했다면 이제 \"이 트레이트를 구현한 타입이면 무엇이든 받는 함수\"를 쓸 수 있습니다. 가장 간단한 문법은 매개변수 타입 자리에 `impl 트레이트` 를 적는 것입니다.\n\n```rust\npub fn announce(item: &impl Greet) {\n    println!(\"새 소식! {}\", item.hello());\n}\n```\n\n이 함수는 `Greet`을 구현한 어떤 타입의 참조든 받고, 본문에서는 `Greet`이 제공하는 메서드만 호출할 수 있습니다. `Greet`을 구현하지 않은 타입을 넘기면 컴파일되지 않습니다.\n\n`impl Trait`은 사실 더 긴 형태인 **트레이트 바운드**의 문법 설탕입니다.\n\n```rust\npub fn announce<T: Greet>(item: &T) {\n    println!(\"새 소식! {}\", item.hello());\n}\n```\n\n둘은 같은 뜻이지만 표현력에서 차이가 납니다. 매개변수가 두 개일 때 `fn notify(a: &impl Greet, b: &impl Greet)`는 a와 b의 타입이 서로 달라도 됩니다. 반면 `fn notify<T: Greet>(a: &T, b: &T)`는 **둘의 구체 타입이 반드시 같아야 한다**고 못 박습니다.\n\n여러 트레이트를 동시에 요구할 때는 `+`로 이어 붙입니다.\n\n```rust\nuse std::fmt::Display;\n\npub fn announce<T: Greet + Display>(item: &T) {\n    println!(\"{} / {}\", item, item.hello());\n}\n```\n\n바운드가 많아지면 함수 이름과 매개변수 목록 사이가 길어져 읽기 힘들어집니다. 이럴 때는 `where` 절로 시그니처 뒤로 옮길 수 있습니다.\n\n```rust\nfn report<T, U>(a: &T, b: &U) -> String\nwhere\n    T: Display + Clone,\n    U: Greet,\n{\n    format!(\"{} {}\", a, b.hello())\n}\n```\n\n`impl Trait`은 반환 타입 자리에도 쓸 수 있습니다. 구체 타입을 밝히지 않고 \"이 트레이트를 구현한 무언가를 돌려준다\"고만 말하는 것이죠. 클로저나 반복자처럼 타입 이름을 적기 곤란할 때 특히 유용합니다.\n\n```rust\nfn make_greeter() -> impl Greet {\n    Robot { serial: 7 }\n}\n```\n\n다만 제약이 있습니다. **반환하는 구체 타입이 하나여야** 합니다. 조건에 따라 `Cat`을 돌려주거나 `Robot`을 돌려주는 함수는 `-> impl Greet`으로 쓸 수 없습니다. 이런 경우는 나중에 배울 트레이트 객체가 필요합니다.\n\n트레이트 바운드는 메서드를 조건부로 추가하는 데도 쓰입니다. 아래에서 `new`는 모든 `Pair<T>`에 생기지만, `show_bigger`는 `T`가 `Display`와 `PartialOrd`를 모두 구현할 때만 존재합니다.\n\n```rust\nimpl<T> Pair<T> {\n    fn new(x: T, y: T) -> Self {\n        Self { x, y }\n    }\n}\n\nimpl<T: Display + PartialOrd> Pair<T> {\n    fn show_bigger(&self) {\n        if self.x >= self.y {\n            println!(\"더 큰 쪽은 x = {}\", self.x);\n        } else {\n            println!(\"더 큰 쪽은 y = {}\", self.y);\n        }\n    }\n}\n```\n\n같은 원리로 **어떤 트레이트를 구현한 모든 타입에 다른 트레이트를 구현**할 수도 있는데, 이를 블랭킷 구현이라고 합니다. 표준 라이브러리가 `impl<T: Display> ToString for T`를 제공하기 때문에 `Display`를 구현한 모든 타입에서 `to_string()`을 쓸 수 있습니다. `3.to_string()`이 동작하는 이유가 바로 이것입니다.\n\n이 모든 검사는 컴파일 시점에 끝납니다. 동적 타입 언어라면 없는 메서드를 부르는 실수가 실행 중에 터지지만, Rust는 실행 전에 막아 주면서 런타임 검사 비용도 들이지 않습니다.",
+      "keyPoints": [
+        "`&impl Trait` 매개변수는 `<T: Trait>` 트레이트 바운드의 간단한 표기다.",
+        "`<T: Trait>(a: &T, b: &T)`는 두 인자의 구체 타입이 같아야 함을 강제한다.",
+        "여러 능력이 필요하면 `+`로 잇고, 길어지면 `where` 절로 옮긴다.",
+        "반환 위치의 `impl Trait`은 실제 구체 타입이 하나일 때만 쓸 수 있다.",
+        "트레이트 바운드가 걸린 impl 블록으로 조건부 메서드와 블랭킷 구현을 만들 수 있다."
+      ],
+      "exercises": [
+        {
+          "type": "mc",
+          "q": "다음 두 시그니처의 차이로 옳은 것은?",
+          "code": "fn a(x: &impl Greet, y: &impl Greet) {}\n\nfn b<T: Greet>(x: &T, y: &T) {}",
+          "options": [
+            "a는 Greet 구현을 요구하지 않고 b만 요구한다",
+            "두 시그니처는 완전히 동일하다",
+            "b는 x와 y가 같은 구체 타입이어야 하고, a는 달라도 된다",
+            "a는 컴파일되지 않는다"
+          ],
+          "answer": 2,
+          "explain": "제네릭 T 하나로 두 매개변수를 묶으면 같은 타입만 허용됩니다. `impl Trait`을 각각 쓰면 서로 다른 타입이어도 됩니다."
+        },
+        {
+          "type": "fill",
+          "q": "두 트레이트를 모두 요구하려면 빈칸에 무엇이 들어가야 하나요?",
+          "code": "use std::fmt::Display;\n\npub fn announce<T: Greet ___ Display>(item: &T) {\n    println!(\"{} / {}\", item, item.hello());\n}",
+          "options": [
+            "+",
+            "&",
+            ",",
+            "and"
+          ],
+          "answer": 0,
+          "explain": "여러 트레이트 바운드는 `+`로 이어 붙입니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는 무엇인가요?",
+          "code": "trait Shape {\n    fn name(&self) -> String;\n}\n\nstruct Circle;\nstruct Square;\n\nimpl Shape for Circle {\n    fn name(&self) -> String { String::from(\"circle\") }\n}\n\nimpl Shape for Square {\n    fn name(&self) -> String { String::from(\"square\") }\n}\n\nfn pick(flag: bool) -> impl Shape {\n    if flag { Circle } else { Square }\n}\n\nfn main() {\n    println!(\"{}\", pick(true).name());\n}",
+          "options": [
+            "circle",
+            "square",
+            "패닉",
+            "컴파일 에러"
+          ],
+          "answer": 3,
+          "explain": "반환 위치의 `impl Trait`은 구체 타입이 하나여야 합니다. 분기마다 다른 타입을 돌려주면 컴파일되지 않습니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는 무엇인가요?",
+          "code": "use std::fmt::Display;\n\nstruct Pair<T> { x: T, y: T }\n\nimpl<T> Pair<T> {\n    fn new(x: T, y: T) -> Self { Self { x, y } }\n}\n\nimpl<T: Display + PartialOrd> Pair<T> {\n    fn show_bigger(&self) {\n        if self.x >= self.y { println!(\"x\"); } else { println!(\"y\"); }\n    }\n}\n\nstruct Tag;\n\nfn main() {\n    let p = Pair::new(Tag, Tag);\n    p.show_bigger();\n}",
+          "options": [
+            "x",
+            "y",
+            "컴파일 에러",
+            "아무것도 출력되지 않음"
+          ],
+          "answer": 2,
+          "explain": "show_bigger는 T가 Display와 PartialOrd를 구현할 때만 존재합니다. Tag는 둘 다 구현하지 않아 메서드를 찾을 수 없습니다."
+        },
+        {
+          "type": "tf",
+          "q": "표준 라이브러리의 블랭킷 구현 덕분에 `Display`를 구현한 타입이면 `to_string()`을 호출할 수 있다.",
+          "answer": true,
+          "explain": "`impl<T: Display> ToString for T`가 존재하므로 Display를 구현한 모든 타입이 ToString도 얻습니다."
+        },
+        {
+          "type": "order",
+          "q": "where 절을 사용하는 함수 시그니처가 되도록 순서를 맞추세요.",
+          "items": [
+            "fn report<T, U>(a: &T, b: &U) -> String",
+            "where",
+            "    T: Display + Clone,",
+            "    U: Greet,",
+            "{"
+          ],
+          "explain": "매개변수와 반환 타입을 먼저 적고, where 절에서 각 타입 매개변수의 바운드를 나열한 뒤 본문을 엽니다."
+        },
+        {
+          "type": "match",
+          "q": "각 문법과 설명을 연결하세요.",
+          "pairs": [
+            [
+              "&impl Summary",
+              "트레이트를 구현한 어떤 타입이든 받는 매개변수 표기"
+            ],
+            [
+              "<T: Summary>",
+              "바운드를 명시적으로 쓴 제네릭 형태"
+            ],
+            [
+              "where 절",
+              "바운드가 많을 때 시그니처를 읽기 쉽게 분리하는 문법"
+            ],
+            [
+              "블랭킷 구현",
+              "조건을 만족하는 모든 타입에 트레이트를 한 번에 구현하는 것"
+            ]
+          ],
+          "explain": "같은 제약을 표현하는 여러 문법과, 표준 라이브러리가 널리 활용하는 블랭킷 구현입니다."
+        }
+      ]
+    },
+    {
+      "id": "ch10-5",
+      "title": "라이프타임으로 참조 검증하기",
+      "summary": "라이프타임도 제네릭의 한 종류입니다. 다만 \"이 타입이 어떤 동작을 갖는가\"를 보장하는 대신, **참조가 필요한 동안 유효한가**를 보장합니다.\n\nRust의 모든 참조에는 라이프타임, 즉 그 참조가 유효한 범위가 있습니다. 대부분은 타입 추론처럼 자동으로 결정되므로 우리가 적을 일이 없습니다. 하지만 여러 참조의 수명이 서로 다르게 얽힐 수 있을 때는 관계를 직접 적어 줘야 합니다.\n\n라이프타임의 목적은 **댕글링 참조**를 막는 것입니다. 가리키던 값이 이미 사라진 참조를 쓰면 엉뚱한 메모리를 읽게 되니까요.\n\n```rust\nfn main() {\n    let r;\n    {\n        let n = 42;\n        r = &n;\n    }\n    println!(\"{r}\");\n}\n```\n\n내부 블록이 끝나면 `n`이 사라지지만 `r`은 여전히 그것을 가리킵니다. 컴파일러의 대여 검사기(borrow checker)는 참조의 유효 범위와 참조 대상의 유효 범위를 비교해, 대상이 더 짧게 살면 `does not live long enough` 에러(E0597)로 거부합니다.\n\n이제 두 문자열 슬라이스 중 더 긴 쪽을 돌려주는 함수를 생각해 봅시다.\n\n```rust\nfn longer(a: &str, b: &str) -> &str {\n    if a.len() >= b.len() { a } else { b }\n}\n```\n\n이 코드는 `missing lifetime specifier`(E0106) 에러가 납니다. 반환되는 참조가 `a`에서 왔는지 `b`에서 왔는지 시그니처만 보고는 알 수 없고, 사실 실행해 보기 전에는 우리도 모릅니다. 대여 검사기는 반환 참조의 수명을 계산할 근거가 없으니 거부하는 것이죠.\n\n해결책은 제네릭 라이프타임 매개변수로 관계를 명시하는 것입니다. 이름은 작은따옴표로 시작하고 보통 짧게 `'a`라고 씁니다. 표기는 `&` 뒤, 타입 앞에 옵니다.\n\n```rust\nfn longer<'a>(a: &'a str, b: &'a str) -> &'a str {\n    if a.len() >= b.len() { a } else { b }\n}\n```\n\n이 시그니처는 \"어떤 수명 `'a`에 대해, 두 인자는 최소한 `'a`만큼 살아 있고 반환값도 `'a` 동안 유효하다\"는 계약입니다. 실제로는 **두 인자의 수명 중 더 짧은 쪽**이 `'a`가 됩니다. 중요한 것은 표기가 값의 실제 수명을 늘리거나 줄이지 않는다는 점입니다. 표기는 그저 관계를 알려 주고, 이를 어기는 호출을 컴파일러가 거부하게 만들 뿐입니다.\n\n모든 매개변수에 같은 라이프타임을 붙여야 하는 것은 아닙니다. 반환값과 관계없는 매개변수는 그냥 두면 됩니다. 아래 함수는 항상 `x`만 반환하므로 `y`의 수명은 알 필요가 없습니다.\n\n```rust\nfn pick<'a>(x: &'a str, y: &str) -> &'a str {\n    x\n}\n```\n\n반대로, 반환하는 참조가 어떤 매개변수와도 이어지지 않는다면 방법이 없습니다.\n\n```rust\nfn broken<'a>() -> &'a str {\n    let owned = String::from(\"hello\");\n    owned.as_str()\n}\n```\n\n`owned`는 함수가 끝나면 사라지므로 이 참조는 반드시 댕글링이 됩니다(E0515). 라이프타임 표기를 아무리 바꿔도 해결되지 않고, 올바른 수정은 참조 대신 `String` 같은 소유 타입을 반환해 호출자에게 소유권을 넘기는 것입니다.",
+      "keyPoints": [
+        "라이프타임은 참조가 유효한 범위이며, 댕글링 참조를 막기 위해 존재한다.",
+        "대여 검사기는 참조와 참조 대상의 수명을 비교해 대상이 더 짧으면 거부한다.",
+        "반환 참조의 출처가 모호하면 E0106이 나고, `'a` 같은 제네릭 라이프타임으로 관계를 적어야 한다.",
+        "`longest<'a>(x: &'a str, y: &'a str) -> &'a str`에서 'a는 두 인자 중 짧은 쪽 수명이 된다.",
+        "라이프타임 표기는 실제 수명을 바꾸지 않으며, 함수 안에서 만든 값의 참조는 반환할 수 없다."
+      ],
+      "exercises": [
+        {
+          "type": "output",
+          "q": "이 코드의 결과는 무엇인가요?",
+          "code": "fn main() {\n    let r;\n    {\n        let n = 42;\n        r = &n;\n    }\n    println!(\"{r}\");\n}",
+          "options": [
+            "42",
+            "0",
+            "컴파일 에러",
+            "패닉"
+          ],
+          "answer": 2,
+          "explain": "n이 내부 블록에서 사라진 뒤 r을 사용하므로 대여 검사기가 `n does not live long enough`로 거부합니다."
+        },
+        {
+          "type": "fill",
+          "q": "빈칸에 들어갈 라이프타임 매개변수 선언은 무엇인가요?",
+          "code": "fn longer<___>(a: &'a str, b: &'a str) -> &'a str {\n    if a.len() >= b.len() { a } else { b }\n}",
+          "options": [
+            "'a",
+            "a",
+            "T",
+            "&'a"
+          ],
+          "answer": 0,
+          "explain": "라이프타임 이름은 작은따옴표로 시작하며, 타입 매개변수와 같은 자리인 꺾쇠 안에서 선언합니다."
+        },
+        {
+          "type": "mc",
+          "q": "라이프타임 표기에 대한 설명으로 옳은 것은?",
+          "options": [
+            "참조가 실제로 살아 있는 기간을 늘려 준다",
+            "참조들의 수명 관계를 컴파일러에 알려 줄 뿐 실제 수명은 바꾸지 않는다",
+            "런타임에 참조가 유효한지 검사하는 코드를 삽입한다",
+            "가비지 컬렉터가 값을 언제 회수할지 지정한다"
+          ],
+          "answer": 1,
+          "explain": "표기는 계약을 기술할 뿐이며, 계약을 어기는 코드를 컴파일 시점에 거부하게 만드는 역할만 합니다."
+        },
+        {
+          "type": "tf",
+          "q": "`fn pick<'a>(x: &'a str, y: &str) -> &'a str { x }` 는 y에 라이프타임 표기가 없어도 컴파일된다.",
+          "answer": true,
+          "explain": "반환값은 항상 x에서 오므로 y의 수명은 반환값과 무관합니다. 관계없는 매개변수까지 묶을 필요는 없습니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는 무엇인가요?",
+          "code": "fn longer<'a>(a: &'a str, b: &'a str) -> &'a str {\n    if a.len() >= b.len() { a } else { b }\n}\n\nfn main() {\n    let s1 = String::from(\"strawberry\");\n    let out;\n    {\n        let s2 = String::from(\"fig\");\n        out = longer(s1.as_str(), s2.as_str());\n    }\n    println!(\"{out}\");\n}",
+          "options": [
+            "strawberry",
+            "fig",
+            "컴파일 에러",
+            "패닉"
+          ],
+          "answer": 2,
+          "explain": "시그니처상 반환값의 수명은 두 인자 중 짧은 s2에 맞춰집니다. 사람 눈에는 결과가 s1이라는 게 보여도 컴파일러는 그 사실을 알 수 없어 거부합니다."
+        },
+        {
+          "type": "mc",
+          "q": "다음 함수가 컴파일되지 않는 이유와 올바른 해결책은?",
+          "code": "fn broken<'a>() -> &'a str {\n    let owned = String::from(\"hello\");\n    owned.as_str()\n}",
+          "options": [
+            "라이프타임 이름이 잘못됐으므로 'b로 바꾸면 된다",
+            "지역 변수의 참조를 반환하려 하므로, String을 소유권째 반환해야 한다",
+            "String 대신 &str 리터럴을 쓰면 라이프타임 표기가 필요 없어진다는 뜻이다",
+            "매개변수가 없어서이므로 더미 매개변수를 추가하면 된다"
+          ],
+          "answer": 1,
+          "explain": "owned는 함수가 끝날 때 해제되므로 어떤 표기로도 유효한 참조를 만들 수 없습니다(E0515). 소유 타입을 반환해 호출자가 관리하게 하는 것이 정답입니다."
+        },
+        {
+          "type": "order",
+          "q": "longer 함수를 호출하는 main이 되도록 순서를 맞추세요.",
+          "items": [
+            "fn main() {",
+            "    let s1 = String::from(\"apple\");",
+            "    let s2 = \"fig\";",
+            "    println!(\"{}\", longer(s1.as_str(), s2));",
+            "}"
+          ],
+          "explain": "두 문자열 슬라이스를 준비한 뒤 호출하며, 둘 다 println! 시점까지 살아 있으므로 대여 검사기를 통과합니다."
+        },
+        {
+          "type": "match",
+          "q": "각 용어와 설명을 연결하세요.",
+          "pairs": [
+            [
+              "댕글링 참조",
+              "이미 해제된 값을 가리키는 참조"
+            ],
+            [
+              "대여 검사기",
+              "참조와 참조 대상의 수명을 비교해 유효성을 판정하는 컴파일러 기능"
+            ],
+            [
+              "'a",
+              "제네릭 라이프타임 매개변수의 흔한 이름"
+            ],
+            [
+              "E0106",
+              "반환 참조의 라이프타임을 특정할 수 없을 때 나는 에러"
+            ]
+          ],
+          "explain": "라이프타임이 막으려는 문제, 그것을 검사하는 주체, 표기 문법, 그리고 표기가 없을 때 만나는 에러입니다."
+        }
+      ]
+    },
+    {
+      "id": "ch10-6",
+      "title": "구조체의 라이프타임, 생략 규칙, 'static",
+      "summary": "지금까지 만든 구조체는 모두 소유한 값을 담았습니다. 참조를 필드로 담는 것도 가능하지만, 그러려면 **모든 참조 필드에 라이프타임 표기**가 필요합니다.\n\n```rust\nstruct Excerpt<'a> {\n    part: &'a str,\n}\n\nfn main() {\n    let novel = String::from(\"오늘 하루는 길었다. 그래도 끝났다.\");\n    let first = novel.split('.').next().unwrap();\n    let e = Excerpt { part: first };\n    println!(\"{}\", e.part);\n}\n```\n\n제네릭 타입과 마찬가지로 구조체 이름 뒤 꺾쇠에 `'a`를 선언하고 필드에서 사용합니다. 이 표기의 의미는 \"`Excerpt` 인스턴스는 자신이 빌린 문자열보다 오래 살 수 없다\"입니다.\n\n그런데 4장에서 본 `first_word` 같은 함수는 참조를 받아 참조를 돌려주면서도 표기가 필요 없었습니다. 컴파일러가 흔한 패턴을 대신 채워 주기 때문인데, 이를 **라이프타임 생략 규칙**이라고 합니다. 이는 프로그래머가 외워 지킬 규칙이 아니라 컴파일러가 시도하는 세 가지 추론입니다. 세 규칙을 다 적용하고도 결정되지 않는 참조가 남으면 컴파일러는 추측하지 않고 에러를 냅니다.\n\n1. 참조인 매개변수마다 각자의 라이프타임 매개변수를 하나씩 부여한다.\n2. 입력 라이프타임이 정확히 하나뿐이면, 그것을 모든 출력 라이프타임에 그대로 쓴다.\n3. 입력이 여러 개라도 그중 하나가 `&self`나 `&mut self`이면, self의 라이프타임을 모든 출력에 쓴다.\n\n`fn first_word(s: &str) -> &str`에 적용해 보면, 규칙 1로 `s`가 `'a`를 얻고 규칙 2로 반환값도 `'a`가 되어 모든 라이프타임이 결정됩니다. 반면 `fn longer(a: &str, b: &str) -> &str`는 규칙 1로 `'a`, `'b` 두 개가 생기고, 입력이 둘이라 규칙 2가 적용되지 않으며, 메서드가 아니라 규칙 3도 해당되지 않습니다. 그래서 직접 표기해 줘야 했던 것이죠.\n\n메서드에서는 규칙 3 덕분에 표기가 거의 필요 없습니다.\n\n```rust\nimpl<'a> Excerpt<'a> {\n    fn level(&self) -> i32 {\n        3\n    }\n\n    fn announce(&self, msg: &str) -> &str {\n        println!(\"알림: {msg}\");\n        self.part\n    }\n}\n```\n\n구조체 필드의 라이프타임은 타입의 일부이므로 `impl` 뒤에 선언하고 타입 이름 뒤에 써 줘야 합니다. 반면 `announce`의 반환 타입에는 표기가 없는데, 입력이 둘이지만 하나가 `&self`이므로 규칙 3이 반환 라이프타임을 `&self`의 것으로 정해 주기 때문입니다.\n\n특별한 라이프타임으로 `'static`이 있습니다. 프로그램이 실행되는 내내 유효하다는 뜻입니다. 모든 문자열 리터럴은 바이너리에 직접 저장되므로 `'static`입니다.\n\n```rust\nlet s: &'static str = \"나는 프로그램 끝까지 살아 있다\";\n```\n\n에러 메시지가 `'static`을 붙이라고 제안하는 경우가 있는데, 대부분은 정말로 프로그램 전체 수명이 필요해서가 아니라 댕글링 참조를 만들었거나 수명이 어긋났기 때문입니다. 표기를 바꾸기 전에 원인을 먼저 고치는 것이 맞습니다.\n\n마지막으로 제네릭 타입, 트레이트 바운드, 라이프타임을 한 함수에 모두 쓰면 이렇게 됩니다. 라이프타임도 제네릭의 일종이므로 같은 꺾쇠 안에 함께 선언합니다.\n\n```rust\nuse std::fmt::Display;\n\nfn longer_with_note<'a, T>(a: &'a str, b: &'a str, note: T) -> &'a str\nwhere\n    T: Display,\n{\n    println!(\"메모: {note}\");\n    if a.len() >= b.len() { a } else { b }\n}\n```",
+      "keyPoints": [
+        "참조를 담는 구조체는 이름 뒤에 `<'a>`를 선언하고 모든 참조 필드에 표기해야 한다.",
+        "생략 규칙 1: 참조 매개변수마다 서로 다른 라이프타임을 부여한다.",
+        "생략 규칙 2: 입력 라이프타임이 하나뿐이면 모든 출력이 그것을 물려받는다.",
+        "생략 규칙 3: `&self`가 있으면 출력 라이프타임은 self의 것이 되어 메서드에서 표기가 거의 필요 없다.",
+        "`'static`은 프로그램 전체 수명을 뜻하며, 문자열 리터럴이 대표적이다."
+      ],
+      "exercises": [
+        {
+          "type": "fill",
+          "q": "참조를 필드로 담는 구조체가 되도록 빈칸을 채우세요.",
+          "code": "struct Excerpt___ {\n    part: &'a str,\n}",
+          "options": [
+            "<'a>",
+            "<'static>",
+            "<T>",
+            "<&a>"
+          ],
+          "answer": 0,
+          "explain": "필드에서 쓰는 라이프타임은 구조체 이름 뒤 꺾쇠 안에서 먼저 선언해야 합니다."
+        },
+        {
+          "type": "mc",
+          "q": "라이프타임 생략 규칙의 첫 번째 규칙은 무엇인가요?",
+          "options": [
+            "참조인 매개변수마다 각각 별개의 라이프타임 매개변수를 부여한다",
+            "모든 참조에 'static을 부여한다",
+            "반환 타입의 라이프타임을 첫 번째 매개변수에서 가져온다",
+            "구조체 필드의 라이프타임을 메서드에 물려준다"
+          ],
+          "answer": 0,
+          "explain": "규칙 1은 입력에 적용되며, 매개변수가 둘이면 서로 다른 라이프타임 두 개가 생깁니다."
+        },
+        {
+          "type": "tf",
+          "q": "입력 매개변수가 여러 개여도 그중 하나가 `&self`이면 반환값의 라이프타임은 self의 것이 된다.",
+          "answer": true,
+          "explain": "세 번째 생략 규칙입니다. 덕분에 메서드 시그니처에 라이프타임을 적을 일이 드뭅니다."
+        },
+        {
+          "type": "mc",
+          "q": "`fn longer(a: &str, b: &str) -> &str`가 표기 없이는 컴파일되지 않는 이유는?",
+          "options": [
+            "규칙 1이 적용되지 않기 때문이다",
+            "반환 타입이 &str이면 항상 표기가 필요하기 때문이다",
+            "입력 라이프타임이 둘이라 규칙 2가 적용되지 않고, 메서드가 아니라 규칙 3도 적용되지 않기 때문이다",
+            "문자열 슬라이스는 'static이어야 하기 때문이다"
+          ],
+          "answer": 2,
+          "explain": "세 규칙을 모두 거쳐도 반환값의 라이프타임이 정해지지 않으면 컴파일러는 추측하지 않고 에러를 냅니다."
+        },
+        {
+          "type": "output",
+          "q": "이 코드의 결과는 무엇인가요?",
+          "code": "struct Excerpt<'a> {\n    part: &'a str,\n}\n\nfn main() {\n    let e;\n    {\n        let novel = String::from(\"첫 문장. 둘째 문장.\");\n        e = Excerpt { part: novel.split('.').next().unwrap() };\n    }\n    println!(\"{}\", e.part);\n}",
+          "options": [
+            "첫 문장",
+            "빈 문자열",
+            "컴파일 에러",
+            "패닉"
+          ],
+          "answer": 2,
+          "explain": "`Excerpt<'a>` 인스턴스는 빌린 문자열보다 오래 살 수 없습니다. novel이 먼저 해제되므로 대여 검사기가 거부합니다."
+        },
+        {
+          "type": "order",
+          "q": "Excerpt에 메서드를 구현하는 코드가 되도록 순서를 맞추세요.",
+          "items": [
+            "impl<'a> Excerpt<'a> {",
+            "    fn part(&self) -> &str {",
+            "        self.part",
+            "    }",
+            "}"
+          ],
+          "explain": "구조체 필드의 라이프타임은 타입의 일부라 impl 뒤에 선언하고 타입 이름 뒤에 씁니다. 반환 타입은 규칙 3 덕분에 표기가 필요 없습니다."
+        },
+        {
+          "type": "fill",
+          "q": "제네릭 타입, 라이프타임, 트레이트 바운드를 함께 쓰는 함수입니다. 빈칸에 들어갈 트레이트는?",
+          "code": "fn longer_with_note<'a, T>(a: &'a str, b: &'a str, note: T) -> &'a str\nwhere\n    T: ___,\n{\n    println!(\"메모: {note}\");\n    if a.len() >= b.len() { a } else { b }\n}",
+          "options": [
+            "PartialOrd",
+            "Clone",
+            "Display",
+            "Copy"
+          ],
+          "answer": 2,
+          "explain": "note를 `{}`로 출력하므로 Display 바운드가 필요합니다. 라이프타임과 타입 매개변수는 같은 꺾쇠 안에 함께 선언합니다."
+        },
+        {
+          "type": "match",
+          "q": "각 항목과 설명을 연결하세요.",
+          "pairs": [
+            [
+              "규칙 1",
+              "참조인 매개변수마다 개별 라이프타임을 부여"
+            ],
+            [
+              "규칙 2",
+              "입력 라이프타임이 하나면 모든 출력에 그대로 적용"
+            ],
+            [
+              "규칙 3",
+              "&self가 있으면 출력 라이프타임을 self에서 가져옴"
+            ],
+            [
+              "'static",
+              "프로그램 전체 기간 동안 유효함을 뜻하는 라이프타임"
+            ]
+          ],
+          "explain": "세 가지 생략 규칙과 특수 라이프타임 'static의 의미입니다."
+        }
+      ]
+    }
+  ]
+}

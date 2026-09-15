@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rustlingo — 게임처럼 배우는 Rust</title>
+<meta name="description" content="The Rust Programming Language 책을 Duolingo 스타일로 학습하는 튜토리얼">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦀</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="crab">🦀</span> Rustlingo</div>
+  <div class="stats">
+    <span class="stat" title="연속 학습일"><span class="ico">🔥</span><b id="st-streak">0</b></span>
+    <span class="stat" title="경험치"><span class="ico">⚡</span><b id="st-xp">0</b></span>
+    <span class="stat" title="레벨"><span class="ico">🏅</span>Lv.<b id="st-level">1</b></span>
+  </div>
+</header>
+
+<main id="view" class="view"></main>
+
+<nav class="tabs">
+  <button data-tab="path" class="active">🗺️<span>학습</span></button>
+  <button data-tab="curriculum">📚<span>커리큘럼</span></button>
+  <button data-tab="practice">🎯<span>연습</span></button>
+  <button data-tab="profile">👤<span>프로필</span></button>
+</nav>
+
+<div id="lesson" class="lesson" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
