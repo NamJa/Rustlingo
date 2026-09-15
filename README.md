@@ -33,10 +33,13 @@ python3 -m http.server 8000   # 그 후 http://localhost:8000
 
 ## GitHub Pages 배포
 
-1. 이 저장소를 GitHub에 push합니다(기본 브랜치 `main`).
-2. 저장소 **Settings → Pages → Build and deployment → Source**를 **GitHub Actions**로 선택합니다.
-3. `main`에 push할 때마다 `.github/workflows/pages.yml`이 데이터 검증(`validate_data.py`) 후 자동 배포합니다.
-4. 주소: `https://<사용자명>.github.io/<저장소명>/`
+정적 파일만 있으므로 브랜치 배포로 충분합니다.
+
+1. `main`에 push합니다.
+2. 저장소 **Settings → Pages → Build and deployment → Source: Deploy from a branch**, Branch `main` / `/ (root)` 를 선택합니다.
+3. 주소: `https://<사용자명>.github.io/<저장소명>/` (첫 배포까지 1~2분)
+
+`.nojekyll`이 있어 Jekyll 처리 없이 그대로 서빙됩니다. push 전에는 `python3 validate_data.py`로 데이터를 검증하세요.
 
 ## 데이터 구조
 
