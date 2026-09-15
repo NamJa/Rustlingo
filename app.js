@@ -73,7 +73,8 @@ function md(text) {
     }).join('');
   }).join('');
 }
-const optLabel = s => /[{};()=:<>]|::|->|\b(let|fn|mut)\b/.test(s) && s.length < 80 ? `<code>${esc(s)}</code>` : esc(s);
+const inl = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>'); // `inline code` in prose
+const optLabel = s => /[가-힣]/.test(s) ? inl(s) : (/[{};()=:<>!&]|::|->/.test(s) && s.length < 80 ? `<code>${esc(s)}</code>` : esc(s));
 
 // ---------- header ----------
 function renderStats() {
@@ -208,7 +209,7 @@ function frame(bodyHtml, footHtml, progress) {
 
 function showStudy() {
   const l = L.lesson;
-  frame(`<div class="study"><small class="muted">${esc(l.chapter.title)} · 책 p.${esc(l.chapter.pages || '')}</small><h2>${esc(l.title)}</h2><div class="md">${md(l.summary || '')}</div>${l.keyPoints?.length ? `<div class="kp"><b>핵심 정리</b><ul>${l.keyPoints.map(k => `<li>${esc(k)}</li>`).join('')}</ul></div>` : ''}</div>`,
+  frame(`<div class="study"><small class="muted">${esc(l.chapter.title)} · 책 p.${esc(l.chapter.pages || '')}</small><h2>${esc(l.title)}</h2><div class="md">${md(l.summary || '')}</div>${l.keyPoints?.length ? `<div class="kp"><b>핵심 정리</b><ul>${l.keyPoints.map(k => `<li>${inl(k)}</li>`).join('')}</ul></div>` : ''}</div>`,
     `<span class="muted">문제 ${l.exercises.length}개</span><button class="btn" id="go">문제 풀기 →</button>`, 0);
   $('#go', L.el).onclick = nextExercise;
 }
@@ -232,7 +233,7 @@ function grade(ex, ok, r) {
   else { L.hearts--; if (!L.retried.has(ex)) { L.retried.add(ex); L.queue.push(ex); L.total++; } }
   r.reveal && r.reveal(ok);
   const ft = $('.ft', L.el); ft.classList.add(ok ? 'ok' : 'bad');
-  $('.inner', ft).innerHTML = `<div class="fb"><h4>${ok ? ['정답이에요! 🎉', '훌륭해요! ✨', '완벽해요! 🦀'][Math.floor(Math.random() * 3)] : '아쉬워요 😢'}</h4><p>${ok ? esc(ex.explain || '') : (r.answerText ? `<b>정답: </b>${r.answerText} <br>` : '') + esc(ex.explain || '')}</p></div><button class="btn ${ok ? '' : 'red'}" id="cont">계속</button>`;
+  $('.inner', ft).innerHTML = `<div class="fb"><h4>${ok ? ['정답이에요! 🎉', '훌륭해요! ✨', '완벽해요! 🦀'][Math.floor(Math.random() * 3)] : '아쉬워요 😢'}</h4><p>${ok ? inl(ex.explain || '') : (r.answerText ? `<b>정답: </b>${r.answerText} <br>` : '') + inl(ex.explain || '')}</p></div><button class="btn ${ok ? '' : 'red'}" id="cont">계속</button>`;
   $('#cont', L.el).onclick = () => L.hearts <= 0 ? showFail() : nextExercise();
   $('#cont', L.el).focus();
   save(); renderStats();
@@ -274,7 +275,7 @@ function choiceRenderer(ex, { tf = false } = {}) {
   let sel = -1;
   const codeHtml = ex.code ? (ex.type === 'fill' ? `<pre class="code">${hl(ex.code).replace('___', '<span class="blank" id="blank">___</span>')}</pre>` : codeBlock(ex.code)) : '';
   return {
-    html: `<div class="q">${esc(ex.q)}</div>${codeHtml}<div class="opts ${tf ? 'tf' : ''}">${opts.map((o, i) => `<button class="opt" data-i="${i}">${tf ? '' : `<span class="i">${i + 1}</span>`}<span>${optLabel(o)}</span></button>`).join('')}</div>`,
+    html: `<div class="q">${inl(ex.q)}</div>${codeHtml}<div class="opts ${tf ? 'tf' : ''}">${opts.map((o, i) => `<button class="opt" data-i="${i}">${tf ? '' : `<span class="i">${i + 1}</span>`}<span>${optLabel(o)}</span></button>`).join('')}</div>`,
     init(checkBtn) {
       L.el.querySelectorAll('.opt').forEach(b => b.onclick = () => {
         sel = +b.dataset.i;
@@ -302,7 +303,7 @@ function orderRenderer(ex) {
     checkBtn.disabled = placed.length !== items.length;
   };
   return {
-    html: `<div class="q">${esc(ex.q)}</div><div class="slots" id="slots"></div><div class="chips" id="chips"></div>`,
+    html: `<div class="q">${inl(ex.q)}</div><div class="slots" id="slots"></div><div class="chips" id="chips"></div>`,
     init: draw,
     check: () => placed.every((v, i) => v === i),
     reveal(ok) { L.el.querySelectorAll('.chip').forEach(b => b.disabled = true); if (!ok) $('#slots', L.el).innerHTML = items.map(s => `<div class="chip" style="background:var(--green-l);border-color:var(--green)">${esc(s)}</div>`).join(''); },
@@ -313,7 +314,7 @@ function matchRenderer(ex) {
   const pairs = ex.pairs, right = shuffle(pairs.map((_, i) => i));
   let selL = null, selR = null, matched = 0, mistakes = 0;
   return {
-    html: `<div class="q">${esc(ex.q)}</div><div class="mgrid"><div class="mcol" id="mL">${pairs.map((p, i) => `<button class="opt" data-i="${i}">${optLabel(p[0])}</button>`).join('')}</div><div class="mcol" id="mR">${right.map(i => `<button class="opt" data-i="${i}">${optLabel(pairs[i][1])}</button>`).join('')}</div></div>`,
+    html: `<div class="q">${inl(ex.q)}</div><div class="mgrid"><div class="mcol" id="mL">${pairs.map((p, i) => `<button class="opt" data-i="${i}">${optLabel(p[0])}</button>`).join('')}</div><div class="mcol" id="mR">${right.map(i => `<button class="opt" data-i="${i}">${optLabel(pairs[i][1])}</button>`).join('')}</div></div>`,
     init(checkBtn) {
       const pick = (side, b) => {
         const col = side === 'L' ? '#mL' : '#mR';
@@ -331,7 +332,7 @@ function matchRenderer(ex) {
     },
     check: () => mistakes <= 1, // ponytail: one slip allowed; tighten if too lenient
     reveal() { L.el.querySelectorAll('.opt').forEach(b => b.disabled = true); },
-    answerText: pairs.map(p => `${esc(p[0])} ↔ ${esc(p[1])}`).join(', '),
+    answerText: pairs.map(p => `${inl(p[0])} ↔ ${inl(p[1])}`).join(', '),
   };
 }
 const RENDER = {

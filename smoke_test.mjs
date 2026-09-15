@@ -33,7 +33,7 @@ while (steps++ < 60) {
     if(ex.type==='tf'){opts[ex.answer?0:1].click();}
     else if(['mc','fill','output'].includes(ex.type)){opts[ex.answer].click();}
     else if(ex.type==='order'){for(let i=0;i<ex.items.length;i++){[...document.querySelectorAll('#chips .chip')].find(c=>c.textContent===ex.items[i]).click();}}
-    else if(ex.type==='match'){for(const [l,r] of ex.pairs){[...document.querySelectorAll('#mL .opt')].find(b=>!b.classList.contains('paired')&&b.textContent===l).click();[...document.querySelectorAll('#mR .opt')].find(b=>!b.classList.contains('paired')&&b.textContent===r).click();}}
+    else if(ex.type==='match'){for(const [l,r] of ex.pairs){[...document.querySelectorAll('#mL .opt')].find(b=>!b.classList.contains('paired')&&b.textContent===l.replace(/\x60/g,"")).click();[...document.querySelectorAll('#mR .opt')].find(b=>!b.classList.contains('paired')&&b.textContent===r.replace(/\x60/g,"")).click();}}
     const c=document.querySelector('#check'); if(c&&!c.disabled&&ex.type!=='match') c.click();
     return ex.type;
   })()`);
