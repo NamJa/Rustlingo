@@ -10,7 +10,7 @@
     {
       "id": "ch15-1",
       "title": "Box<T>로 힙에 데이터 두기",
-      "summary": "가장 단순한 스마트 포인터는 `Box<T>`다. 값을 스택이 아니라 **힙**에 두고, 스택에는 그 힙 주소를 가리키는 포인터만 남긴다. 특별한 기능은 거의 없고, 데이터 위치가 힙이라는 점 말고는 추가 비용도 없다.\n\n```rust\nfn main() {\n    let n = Box::new(42);\n    println!(\"n = {n}\");\n    // n이 스코프를 벗어나면 박스와 힙의 42가 함께 해제된다\n}\n```\n\n박스를 쓰는 대표적인 상황은 세 가지다. 컴파일 타임에 크기를 알 수 없는 타입을 크기가 확정돼야 하는 자리에 넣을 때, 큰 데이터의 소유권을 넘기면서 스택 복사를 피하고 싶을 때, 그리고 구체 타입이 아니라 \"어떤 트레이트를 구현한 값\"만 소유하고 싶을 때(트레이트 객체)다.\n\n첫 번째 경우가 바로 **재귀 타입**이다. Rust는 타입마다 필요한 바이트 수를 컴파일 타임에 알아야 하는데, 자기 자신을 직접 품는 타입은 크기가 무한히 늘어난다. 아래 코드는 컴파일되지 않는다.\n\n```rust\nenum Expr {\n    Num(i32),\n    Add(Expr, Expr), // error[E0072]: recursive type has infinite size\n}\n```\n\n컴파일러는 `Expr`의 크기를 재려고 변형을 하나씩 살피다가 `Add`에서 다시 `Expr`의 크기를 요구받고, 이 과정이 끝나지 않는다. 일반적인 열거형은 가장 큰 변형만큼의 공간을 잡으면 되지만, 재귀 변형에서는 그 \"가장 큰 값\"이 정해지지 않는 셈이다.\n\n해결책은 값을 직접 품는 대신 **간접 참조**를 두는 것이다. 박스는 포인터이므로 가리키는 대상이 아무리 커도 크기가 일정하다. 따라서 재귀 부분을 `Box`로 감싸면 타입의 크기가 확정된다.\n\n```rust\nenum Expr {\n    Num(i32),\n    Add(Box<Expr>, Box<Expr>),\n}\n\nfn eval(e: &Expr) -> i32 {\n    match e {\n        Expr::Num(v) => *v,\n        Expr::Add(l, r) => eval(l) + eval(r),\n    }\n}\n\nfn main() {\n    let e = Expr::Add(Box::new(Expr::Num(1)), Box::new(Expr::Add(Box::new(Expr::Num(2)), Box::new(Expr::Num(3)))));\n    println!(\"{}\", eval(&e)); // 6\n}\n```\n\n함수형 언어에서 흔히 보는 cons 리스트도 같은 구조다. 각 항목이 값 하나와 다음 항목을 담고, 마지막은 `Nil`로 끝난다. Rust에서는 실제로 목록이 필요하면 `Vec<T>`를 쓰는 편이 낫지만, 재귀 타입과 박스의 관계를 보기에는 좋은 예제다.\n\n`Box<T>`가 포인터가 아니라 스마트 포인터인 이유는 두 트레이트에 있다. `Deref`를 구현하므로 `*` 연산자로 참조처럼 다룰 수 있고, `Drop`을 구현하므로 박스가 스코프를 벗어나면 가리키던 힙 데이터까지 자동으로 정리된다. 다음 레슨에서 이 두 트레이트를 자세히 본다.",
+      "summary": "가장 단순한 스마트 포인터는 `Box<T>`다. 값을 스택이 아니라 **힙**에 두고, 스택에는 그 힙 주소를 가리키는 포인터만 남긴다. 특별한 기능은 거의 없고, 데이터 위치가 힙이라는 점 말고는 추가 비용도 없다.\n\n```rust\nfn main() {\n    let n = Box::new(42);\n    println!(\"n = {n}\");\n    // n이 스코프를 벗어나면 박스와 힙의 42가 함께 해제된다\n}\n```\n\n박스를 쓰는 대표적인 상황은 세 가지다. 컴파일 타임에 크기를 알 수 없는 타입을 크기가 확정돼야 하는 자리에 넣을 때, 큰 데이터의 소유권을 넘기면서 스택 복사를 피하고 싶을 때, 그리고 구체 타입이 아니라 \"어떤 트레이트를 구현한 값\"만 소유하고 싶을 때(트레이트 객체)다.\n\n첫 번째 경우가 바로 **재귀 타입**이다. Rust는 타입마다 필요한 바이트 수를 컴파일 타임에 알아야 하는데, 자기 자신을 직접 품는 타입은 크기가 무한히 늘어난다. 아래 코드는 컴파일되지 않는다.\n\n```rust\nenum Expr {\n    Num(i32),\n    Add(Expr, Expr), // ❌ 컴파일 에러: error[E0072] recursive type has infinite size\n}\n```\n\n컴파일러는 `Expr`의 크기를 재려고 변형을 하나씩 살피다가 `Add`에서 다시 `Expr`의 크기를 요구받고, 이 과정이 끝나지 않는다. 일반적인 열거형은 가장 큰 변형만큼의 공간을 잡으면 되지만, 재귀 변형에서는 그 \"가장 큰 값\"이 정해지지 않는 셈이다.\n\n해결책은 값을 직접 품는 대신 **간접 참조**를 두는 것이다. 박스는 포인터이므로 가리키는 대상이 아무리 커도 크기가 일정하다. 따라서 재귀 부분을 `Box`로 감싸면 타입의 크기가 확정된다.\n\n```rust\nenum Expr {\n    Num(i32),\n    Add(Box<Expr>, Box<Expr>),\n}\n\nfn eval(e: &Expr) -> i32 {\n    match e {\n        Expr::Num(v) => *v,\n        Expr::Add(l, r) => eval(l) + eval(r),\n    }\n}\n\nfn main() {\n    let e = Expr::Add(Box::new(Expr::Num(1)), Box::new(Expr::Add(Box::new(Expr::Num(2)), Box::new(Expr::Num(3)))));\n    println!(\"{}\", eval(&e)); // 6\n}\n```\n\n함수형 언어에서 흔히 보는 cons 리스트도 같은 구조다. 각 항목이 값 하나와 다음 항목을 담고, 마지막은 `Nil`로 끝난다. Rust에서는 실제로 목록이 필요하면 `Vec<T>`를 쓰는 편이 낫지만, 재귀 타입과 박스의 관계를 보기에는 좋은 예제다.\n\n`Box<T>`가 포인터가 아니라 스마트 포인터인 이유는 두 트레이트에 있다. `Deref`를 구현하므로 `*` 연산자로 참조처럼 다룰 수 있고, `Drop`을 구현하므로 박스가 스코프를 벗어나면 가리키던 힙 데이터까지 자동으로 정리된다. 다음 레슨에서 이 두 트레이트를 자세히 본다.",
       "keyPoints": [
         "Box<T>는 값을 힙에 저장하고 스택에는 포인터만 남긴다.",
         "재귀 타입은 크기가 무한해져 컴파일되지 않으며, Box로 간접 참조를 넣어 해결한다.",
@@ -117,7 +117,7 @@
     {
       "id": "ch15-2",
       "title": "Deref와 Drop 트레이트",
-      "summary": "스마트 포인터를 스마트 포인터답게 만드는 두 트레이트가 `Deref`와 `Drop`이다. `Deref`는 역참조 연산자 `*`의 동작을 정의해서, 내가 만든 타입도 평범한 참조처럼 쓰이게 해 준다.\n\n먼저 일반 참조부터 보자. `let y = &x;`일 때 `y`와 `5`는 타입이 달라 바로 비교할 수 없고, `*y`로 가리키는 값을 따라가야 한다. 박스도 똑같이 `*` 를 쓸 수 있는데, 이는 `Box<T>`가 `Deref`를 구현했기 때문이다.\n\n직접 만든 래퍼 타입은 아무것도 구현하지 않으면 `*`를 쓸 수 없다. `Deref`를 구현하면 그때부터 가능해진다.\n\n```rust\nuse std::ops::Deref;\n\nstruct Holder<T>(T);\n\nimpl<T> Holder<T> {\n    fn new(v: T) -> Holder<T> {\n        Holder(v)\n    }\n}\n\nimpl<T> Deref for Holder<T> {\n    type Target = T;\n\n    fn deref(&self) -> &Self::Target {\n        &self.0\n    }\n}\n```\n\n`deref`가 값이 아니라 **참조**를 돌려준다는 점이 중요하다. 값을 그대로 넘기면 내부 값이 밖으로 이동해 버리기 때문이다. 그래서 우리가 `*h`라고 쓰면 컴파일러는 이를 `*(h.deref())`로 바꿔 실행한다. 이 치환은 한 단계씩만 일어나므로 무한히 반복되지 않는다.\n\n`Deref` 덕분에 **역참조 강제 변환(deref coercion)** 도 따라온다. 함수 인자의 타입이 맞지 않을 때, 컴파일러가 필요한 만큼 `deref`를 호출해 타입을 맞춰 주는 기능이다. 대표적인 예가 `&String`을 `&str`로 바꾸는 것이다.\n\n```rust\nfn greet(name: &str) {\n    println!(\"안녕, {name}!\");\n}\n\nfn main() {\n    let h = Holder::new(String::from(\"Rust\"));\n    greet(&h); // &Holder<String> -> &String -> &str\n}\n```\n\n강제 변환이 없다면 `greet(&(*h)[..])`처럼 직접 써야 한다. 변환 횟수는 컴파일 타임에 결정되므로 런타임 비용은 없다. 규칙은 세 가지다. `T: Deref<Target=U>`일 때 `&T`에서 `&U`로, `T: DerefMut<Target=U>`일 때 `&mut T`에서 `&mut U`로, 그리고 `&mut T`에서 `&U`로도 변환된다. 반대로 불변 참조가 가변 참조로 바뀌는 일은 절대 없다. 빌림 규칙상 가변 참조는 유일해야 하는데, 불변 참조가 유일하다는 보장은 없기 때문이다.\n\n두 번째 트레이트인 `Drop`은 값이 스코프를 벗어나기 직전에 실행할 코드를 정한다. 파일 핸들이나 잠금 해제처럼 정리가 필요한 자원에 쓰며, 프렐류드에 포함되어 있어 따로 가져올 필요가 없다.\n\n```rust\nstruct Conn {\n    name: String,\n}\n\nimpl Drop for Conn {\n    fn drop(&mut self) {\n        println!(\"{} 연결을 닫습니다\", self.name);\n    }\n}\n\nfn main() {\n    let _a = Conn { name: String::from(\"db\") };\n    let _b = Conn { name: String::from(\"cache\") };\n    println!(\"작업 중\");\n}\n```\n\n출력은 \"작업 중\", \"cache 연결을 닫습니다\", \"db 연결을 닫습니다\" 순이다. 변수는 **만들어진 역순으로** 정리되기 때문이다. 정리를 앞당기고 싶어 `_a.drop()`처럼 직접 부르면 컴파일 에러가 난다. 스코프 끝에서 한 번 더 자동 호출되어 이중 해제가 되기 때문이다. 대신 프렐류드에 있는 `std::mem::drop` 함수에 값을 넘기면(`drop(_a)`) 소유권을 가져가면서 그 자리에서 정리된다.",
+      "summary": "스마트 포인터를 스마트 포인터답게 만드는 두 트레이트가 `Deref`와 `Drop`이다. `Deref`는 역참조 연산자 `*`의 동작을 정의해서, 내가 만든 타입도 평범한 참조처럼 쓰이게 해 준다.\n\n먼저 일반 참조부터 보자. `let y = &x;`일 때 `y`와 `5`는 타입이 달라 바로 비교할 수 없고, `*y`로 가리키는 값을 따라가야 한다. 박스도 똑같이 `*` 를 쓸 수 있는데, 이는 `Box<T>`가 `Deref`를 구현했기 때문이다.\n\n직접 만든 래퍼 타입은 아무것도 구현하지 않으면 `*`를 쓸 수 없다. `Deref`를 구현하면 그때부터 가능해진다.\n\n```rust\nuse std::ops::Deref;\n\nstruct Holder<T>(T);\n\nimpl<T> Holder<T> {\n    fn new(v: T) -> Holder<T> {\n        Holder(v)\n    }\n}\n\nimpl<T> Deref for Holder<T> {\n    type Target = T;\n\n    fn deref(&self) -> &Self::Target {\n        &self.0\n    }\n}\n```\n\n`deref`가 값이 아니라 **참조**를 돌려준다는 점이 중요하다. 값을 그대로 넘기면 내부 값이 밖으로 이동해 버리기 때문이다. 그래서 우리가 `*h`라고 쓰면 컴파일러는 이를 `*(h.deref())`로 바꿔 실행한다. 이 치환은 한 단계씩만 일어나므로 무한히 반복되지 않는다.\n\n`Deref` 덕분에 **역참조 강제 변환(deref coercion)** 도 따라온다. 함수 인자의 타입이 맞지 않을 때, 컴파일러가 필요한 만큼 `deref`를 호출해 타입을 맞춰 주는 기능이다. 대표적인 예가 `&String`을 `&str`로 바꾸는 것이다.\n\n```rust\nuse std::ops::Deref;\n\nstruct Holder<T>(T);\n\nimpl<T> Deref for Holder<T> {\n    type Target = T;\n    fn deref(&self) -> &Self::Target {\n        &self.0\n    }\n}\n\nfn greet(name: &str) {\n    println!(\"안녕, {name}!\");\n}\n\nfn main() {\n    let h = Holder(String::from(\"Rust\"));\n    greet(&h); // &Holder<String> -> &String -> &str\n}\n```\n\n강제 변환이 없다면 `greet(&(*h)[..])`처럼 직접 써야 한다. 변환 횟수는 컴파일 타임에 결정되므로 런타임 비용은 없다. 규칙은 세 가지다. `T: Deref<Target=U>`일 때 `&T`에서 `&U`로, `T: DerefMut<Target=U>`일 때 `&mut T`에서 `&mut U`로, 그리고 `&mut T`에서 `&U`로도 변환된다. 반대로 불변 참조가 가변 참조로 바뀌는 일은 절대 없다. 빌림 규칙상 가변 참조는 유일해야 하는데, 불변 참조가 유일하다는 보장은 없기 때문이다.\n\n두 번째 트레이트인 `Drop`은 값이 스코프를 벗어나기 직전에 실행할 코드를 정한다. 파일 핸들이나 잠금 해제처럼 정리가 필요한 자원에 쓰며, 프렐류드에 포함되어 있어 따로 가져올 필요가 없다.\n\n```rust\nstruct Conn {\n    name: String,\n}\n\nimpl Drop for Conn {\n    fn drop(&mut self) {\n        println!(\"{} 연결을 닫습니다\", self.name);\n    }\n}\n\nfn main() {\n    let _a = Conn { name: String::from(\"db\") };\n    let _b = Conn { name: String::from(\"cache\") };\n    println!(\"작업 중\");\n}\n```\n\n출력은 \"작업 중\", \"cache 연결을 닫습니다\", \"db 연결을 닫습니다\" 순이다. 변수는 **만들어진 역순으로** 정리되기 때문이다. 정리를 앞당기고 싶어 `_a.drop()`처럼 직접 부르면 컴파일 에러가 난다. 스코프 끝에서 한 번 더 자동 호출되어 이중 해제가 되기 때문이다. 대신 프렐류드에 있는 `std::mem::drop` 함수에 값을 넘기면(`drop(_a)`) 소유권을 가져가면서 그 자리에서 정리된다.",
       "keyPoints": [
         "Deref를 구현하면 내 타입도 * 연산자로 참조처럼 다룰 수 있다.",
         "*h는 컴파일러가 *(h.deref())로 치환하며, deref는 참조를 돌려줘야 한다.",
@@ -142,7 +142,7 @@
         {
           "type": "fill",
           "q": "Deref 구현이 완성되도록 빈칸을 채우세요.",
-          "code": "impl<T> Deref for Holder<T> {\n    type ___ = T;\n\n    fn deref(&self) -> &Self::Target {\n        &self.0\n    }\n}",
+          "code": "use std::ops::Deref;\n\nstruct Holder<T>(T);\n\nimpl<T> Deref for Holder<T> {\n    type ___ = T;\n\n    fn deref(&self) -> &Self::Target {\n        &self.0\n    }\n}",
           "options": [
             "Output",
             "Item",
@@ -167,7 +167,7 @@
         {
           "type": "mc",
           "q": "greet(name: &str)에 &h(h는 Holder<String>)를 넘겨도 컴파일되는 이유는?",
-          "code": "fn greet(name: &str) {\n    println!(\"안녕, {name}!\");\n}\n\nfn main() {\n    let h = Holder::new(String::from(\"Rust\"));\n    greet(&h);\n}",
+          "code": "use std::ops::Deref;\n\nstruct Holder<T>(T);\n\nimpl<T> Deref for Holder<T> {\n    type Target = T;\n    fn deref(&self) -> &Self::Target {\n        &self.0\n    }\n}\n\nfn greet(name: &str) {\n    println!(\"안녕, {name}!\");\n}\n\nfn main() {\n    let h = Holder(String::from(\"Rust\"));\n    greet(&h);\n}",
           "options": [
             "Rust가 인자 타입 검사를 생략하기 때문",
             "역참조 강제 변환이 &Holder<String> → &String → &str로 두 번 적용되기 때문",
@@ -236,7 +236,7 @@
     {
       "id": "ch15-3",
       "title": "Rc<T>: 참조 카운트로 공유하기",
-      "summary": "대부분의 값은 소유자가 하나로 분명하다. 하지만 그래프처럼 여러 간선이 같은 노드를 가리키는 구조에서는 \"이 값을 누가 소유하는가\"가 하나로 정해지지 않는다. 마지막 사용자가 사라질 때까지 값이 살아 있어야 한다면, 소유자를 여럿 두는 편이 자연스럽다.\n\n이럴 때 쓰는 타입이 `Rc<T>`(reference counting)다. 값을 가리키는 참조가 몇 개인지 세고 있다가 0이 되면 값을 정리한다. 프렐류드에 없으므로 `use std::rc::Rc;`가 필요하다.\n\n왜 필요한지는 `Box<T>`로 공유를 시도해 보면 금방 드러난다.\n\n```rust\nenum List {\n    Cons(i32, Box<List>),\n    Nil,\n}\n\nfn main() {\n    let a = List::Cons(5, Box::new(List::Cons(10, Box::new(List::Nil))));\n    let b = List::Cons(3, Box::new(a));\n    let c = List::Cons(4, Box::new(a)); // error[E0382]: a는 이미 이동됨\n}\n```\n\n`Cons`가 값을 소유하므로 `a`는 `b`를 만들 때 이동해 버리고, `c`에서 다시 쓸 수 없다. 참조로 바꾸면 라이프타임 매개변수를 달아야 하고, 그러면 리스트 전체보다 모든 원소가 오래 살아야 한다는 제약이 생긴다.\n\n`Rc<T>`를 쓰면 깔끔하게 해결된다. `Rc::clone(&a)`는 **깊은 복사가 아니라** 카운트를 1 늘리는 값싼 연산이다.\n\n```rust\nuse std::rc::Rc;\n\nenum List {\n    Cons(i32, Rc<List>),\n    Nil,\n}\n\nfn main() {\n    let a = Rc::new(List::Cons(5, Rc::new(List::Cons(10, Rc::new(List::Nil)))));\n    let b = List::Cons(3, Rc::clone(&a));\n    let c = List::Cons(4, Rc::clone(&a));\n}\n```\n\n`a.clone()`이라고 써도 결과는 같지만, 관례적으로 `Rc::clone(&a)`를 쓴다. 코드를 읽을 때 \"비싼 깊은 복사\"와 \"카운트만 올리는 복제\"를 눈으로 구분하기 위해서다. 성능 문제를 찾을 때 `Rc::clone` 호출은 후보에서 제외해도 된다.\n\n카운트는 `Rc::strong_count(&a)`로 확인할 수 있다. 늘릴 때는 `Rc::clone`을 명시적으로 호출하지만, 줄일 때는 아무것도 하지 않아도 된다. `Rc<T>`의 `Drop` 구현이 스코프를 벗어날 때 알아서 1씩 깎는다.\n\n```rust\nlet a = Rc::new(String::from(\"shared\"));\nprintln!(\"{}\", Rc::strong_count(&a)); // 1\nlet b = Rc::clone(&a);\nprintln!(\"{}\", Rc::strong_count(&a)); // 2\n{\n    let c = Rc::clone(&a);\n    println!(\"{}\", Rc::strong_count(&a)); // 3\n}\nprintln!(\"{}\", Rc::strong_count(&a)); // 2\n```\n\n두 가지 제약을 기억하자. 첫째, `Rc<T>`는 **불변 공유**만 제공한다. 여러 소유자가 동시에 값을 바꿀 수 있다면 데이터 경합이 생기므로, 읽기 전용으로만 나눠 준다. 값을 바꾸고 싶다면 다음 레슨의 `RefCell<T>`와 조합해야 한다. 둘째, `Rc<T>`는 **단일 스레드 전용**이다. 여러 스레드에서 공유하려면 원자적 카운트를 쓰는 다른 타입이 필요하다.",
+      "summary": "대부분의 값은 소유자가 하나로 분명하다. 하지만 그래프처럼 여러 간선이 같은 노드를 가리키는 구조에서는 \"이 값을 누가 소유하는가\"가 하나로 정해지지 않는다. 마지막 사용자가 사라질 때까지 값이 살아 있어야 한다면, 소유자를 여럿 두는 편이 자연스럽다.\n\n이럴 때 쓰는 타입이 `Rc<T>`(reference counting)다. 값을 가리키는 참조가 몇 개인지 세고 있다가 0이 되면 값을 정리한다. 프렐류드에 없으므로 `use std::rc::Rc;`가 필요하다.\n\n왜 필요한지는 `Box<T>`로 공유를 시도해 보면 금방 드러난다.\n\n```rust\nenum List {\n    Cons(i32, Box<List>),\n    Nil,\n}\n\nfn main() {\n    let a = List::Cons(5, Box::new(List::Cons(10, Box::new(List::Nil))));\n    let b = List::Cons(3, Box::new(a));\n    let c = List::Cons(4, Box::new(a)); // ❌ 컴파일 에러: error[E0382] a는 이미 이동됨\n}\n```\n\n`Cons`가 값을 소유하므로 `a`는 `b`를 만들 때 이동해 버리고, `c`에서 다시 쓸 수 없다. 참조로 바꾸면 라이프타임 매개변수를 달아야 하고, 그러면 리스트 전체보다 모든 원소가 오래 살아야 한다는 제약이 생긴다.\n\n`Rc<T>`를 쓰면 깔끔하게 해결된다. `Rc::clone(&a)`는 **깊은 복사가 아니라** 카운트를 1 늘리는 값싼 연산이다.\n\n```rust\nuse std::rc::Rc;\n\nenum List {\n    Cons(i32, Rc<List>),\n    Nil,\n}\n\nfn main() {\n    let a = Rc::new(List::Cons(5, Rc::new(List::Cons(10, Rc::new(List::Nil)))));\n    let b = List::Cons(3, Rc::clone(&a));\n    let c = List::Cons(4, Rc::clone(&a));\n}\n```\n\n`a.clone()`이라고 써도 결과는 같지만, 관례적으로 `Rc::clone(&a)`를 쓴다. 코드를 읽을 때 \"비싼 깊은 복사\"와 \"카운트만 올리는 복제\"를 눈으로 구분하기 위해서다. 성능 문제를 찾을 때 `Rc::clone` 호출은 후보에서 제외해도 된다.\n\n카운트는 `Rc::strong_count(&a)`로 확인할 수 있다. 늘릴 때는 `Rc::clone`을 명시적으로 호출하지만, 줄일 때는 아무것도 하지 않아도 된다. `Rc<T>`의 `Drop` 구현이 스코프를 벗어날 때 알아서 1씩 깎는다.\n\n```rust\nuse std::rc::Rc;\n\nfn main() {\n    let a = Rc::new(String::from(\"shared\"));\n    println!(\"{}\", Rc::strong_count(&a)); // 1\n    let _b = Rc::clone(&a);\n    println!(\"{}\", Rc::strong_count(&a)); // 2\n    {\n        let _c = Rc::clone(&a);\n        println!(\"{}\", Rc::strong_count(&a)); // 3\n    }\n    println!(\"{}\", Rc::strong_count(&a)); // 2\n}\n```\n\n두 가지 제약을 기억하자. 첫째, `Rc<T>`는 **불변 공유**만 제공한다. 여러 소유자가 동시에 값을 바꿀 수 있다면 데이터 경합이 생기므로, 읽기 전용으로만 나눠 준다. 값을 바꾸고 싶다면 다음 레슨의 `RefCell<T>`와 조합해야 한다. 둘째, `Rc<T>`는 **단일 스레드 전용**이다. 여러 스레드에서 공유하려면 원자적 카운트를 쓰는 다른 타입이 필요하다.",
       "keyPoints": [
         "Rc<T>는 참조 개수를 세어 마지막 소유자가 사라질 때 값을 정리한다.",
         "Rc::clone은 깊은 복사가 아니라 카운트를 1 증가시키는 값싼 연산이다.",
@@ -261,7 +261,7 @@
         {
           "type": "mc",
           "q": "Box<List>로 만든 리스트 a를 두 리스트 b, c가 공유하려 하면 어떤 문제가 생기는가?",
-          "code": "let a = List::Cons(5, Box::new(List::Nil));\nlet b = List::Cons(3, Box::new(a));\nlet c = List::Cons(4, Box::new(a));",
+          "code": "enum List {\n    Cons(i32, Box<List>),\n    Nil,\n}\n\nfn main() {\n    let a = List::Cons(5, Box::new(List::Nil));\n    let b = List::Cons(3, Box::new(a));\n    let c = List::Cons(4, Box::new(a));\n}",
           "options": [
             "a가 b로 이동해 버려 c에서 쓸 수 없다는 컴파일 에러",
             "런타임에 이중 해제 패닉",
@@ -274,7 +274,7 @@
         {
           "type": "fill",
           "q": "a가 가리키는 값을 공유하면서 카운트만 올리려면 빈칸에 무엇이 들어가야 하는가?",
-          "code": "let a = Rc::new(List::Cons(5, Rc::new(List::Nil)));\nlet b = List::Cons(3, ___(&a));",
+          "code": "use std::rc::Rc;\n\nenum List {\n    Cons(i32, Rc<List>),\n    Nil,\n}\n\nfn main() {\n    let a = Rc::new(List::Cons(5, Rc::new(List::Nil)));\n    let b = List::Cons(3, ___(&a));\n}",
           "options": [
             "Rc::new",
             "Box::new",
@@ -336,19 +336,19 @@
           "q": "두 리스트가 하나의 리스트를 공유하도록 순서대로 배열하세요.",
           "items": [
             "use std::rc::Rc;",
+            "enum List { Cons(i32, Rc<List>), Nil }",
             "let a = Rc::new(List::Cons(5, Rc::new(List::Nil)));",
             "let b = List::Cons(3, Rc::clone(&a));",
-            "let c = List::Cons(4, Rc::clone(&a));",
-            "println!(\"{}\", Rc::strong_count(&a)); // 3"
+            "println!(\"{}\", Rc::strong_count(&a)); // 2"
           ],
-          "explain": "Rc는 프렐류드에 없어 먼저 가져와야 하고, 공유 대상을 만든 뒤 clone으로 소유자를 늘린다."
+          "explain": "Rc는 프렐류드에 없어 먼저 가져오고, 타입을 정의한 뒤 공유 대상을 만들고 clone으로 소유자를 늘린다. a 자신과 b 안의 clone이 있으므로 카운트는 2다."
         }
       ]
     },
     {
       "id": "ch15-4",
       "title": "RefCell<T>와 내부 가변성",
-      "summary": "**내부 가변성**은 겉으로는 불변인 값의 안쪽을 바꾸는 설계 패턴이다. 보통은 빌림 규칙이 이를 막지만, 자료구조 내부에서 안전성을 직접 보장하는 방식으로 규칙을 우회한다. 그 결과 바깥 타입은 여전히 불변으로 보이고, 위험한 부분은 안전한 API 뒤에 감춰진다.\n\n`RefCell<T>`가 대표적인 예다. `Box<T>`처럼 소유자는 하나지만, 결정적인 차이는 **검사 시점**이다. 참조나 `Box<T>`는 빌림 규칙을 컴파일 타임에 확인해 위반하면 컴파일 에러를 내지만, `RefCell<T>`는 런타임에 확인하고 위반하면 **패닉**한다.\n\n컴파일 타임 검사가 기본값인 이유는 분명하다. 오류를 일찍 잡고 런타임 비용도 없다. 다만 정적 분석은 보수적이어서, 실제로는 안전한 프로그램인데도 컴파일러가 확신하지 못해 거절하는 경우가 있다. `RefCell<T>`는 \"내가 보기엔 규칙을 지키는데 컴파일러가 증명하지 못하는\" 상황을 위한 탈출구다.\n\n세 타입을 비교하면 이렇다. `Rc<T>`는 소유자를 여럿 허용하고 `Box<T>`와 `RefCell<T>`는 소유자가 하나다. `Box<T>`는 컴파일 타임에 검사된 불변·가변 빌림을, `Rc<T>`는 불변 빌림만, `RefCell<T>`는 런타임에 검사되는 불변·가변 빌림을 제공한다. 그래서 `RefCell<T>`는 값 자체가 불변이어도 안쪽을 바꿀 수 있다.\n\n전형적인 활용은 테스트용 목(mock) 객체다. 트레이트가 `&self`만 받도록 정의되어 있으면 구현체에서 필드를 바꿀 수 없는데, 테스트 기록용으로는 바꿔야 한다. 트레이트 정의를 테스트 때문에 고칠 수는 없으니 필드를 `RefCell`로 감싼다.\n\n```rust\nuse std::cell::RefCell;\n\ntrait Notifier {\n    fn notify(&self, msg: &str);\n}\n\nstruct RecordingNotifier {\n    seen: RefCell<Vec<String>>,\n}\n\nimpl Notifier for RecordingNotifier {\n    fn notify(&self, msg: &str) {\n        self.seen.borrow_mut().push(String::from(msg));\n    }\n}\n\n#[test]\nfn records_messages() {\n    let n = RecordingNotifier { seen: RefCell::new(vec![]) };\n    n.notify(\"안녕\");\n    assert_eq!(n.seen.borrow().len(), 1);\n}\n```\n\n`&`와 `&mut` 대신 `borrow`와 `borrow_mut` 메서드를 쓴다. `borrow`는 `Ref<T>`를, `borrow_mut`는 `RefMut<T>`를 돌려주는데, 둘 다 `Deref`를 구현해 평범한 참조처럼 다룰 수 있다. `RefCell<T>`는 살아 있는 `Ref<T>`와 `RefMut<T>`의 개수를 세고 있다가 규칙(불변 여럿 또는 가변 하나)을 어기면 그 자리에서 패닉한다.\n\n```rust\nfn broken(&self) {\n    let mut first = self.seen.borrow_mut();\n    let mut second = self.seen.borrow_mut(); // 런타임 패닉!\n    first.push(String::from(\"a\"));\n    second.push(String::from(\"b\"));\n}\n```\n\n이 코드는 **컴파일은 통과하고 실행 중에 실패한다**. 오류를 늦게 발견하게 되고 빌림을 추적하는 약간의 런타임 비용도 생기지만, 그 대가로 컴파일러가 허락하지 않던 구조를 안전하게 표현할 수 있다.\n\n`Rc<T>`와 `RefCell<T>`를 겹쳐 쓰면 \"여러 소유자가 공유하면서 변경 가능한 값\"이 된다. `Rc<RefCell<T>>` 조합이다.\n\n```rust\nuse std::cell::RefCell;\nuse std::rc::Rc;\n\nfn main() {\n    let shared = Rc::new(RefCell::new(5));\n    let a = Rc::clone(&shared);\n    let b = Rc::clone(&shared);\n\n    *shared.borrow_mut() += 10;\n\n    println!(\"{} {}\", a.borrow(), b.borrow()); // 15 15\n}\n```\n\n마지막으로 `RefCell<T>`도 `Rc<T>`처럼 단일 스레드 전용이다. 멀티스레드에서 같은 일을 하려면 스레드 안전한 다른 타입을 써야 한다.",
+      "summary": "**내부 가변성**은 겉으로는 불변인 값의 안쪽을 바꾸는 설계 패턴이다. 보통은 빌림 규칙이 이를 막지만, 자료구조 내부에서 안전성을 직접 보장하는 방식으로 규칙을 우회한다. 그 결과 바깥 타입은 여전히 불변으로 보이고, 위험한 부분은 안전한 API 뒤에 감춰진다.\n\n`RefCell<T>`가 대표적인 예다. `Box<T>`처럼 소유자는 하나지만, 결정적인 차이는 **검사 시점**이다. 참조나 `Box<T>`는 빌림 규칙을 컴파일 타임에 확인해 위반하면 컴파일 에러를 내지만, `RefCell<T>`는 런타임에 확인하고 위반하면 **패닉**한다.\n\n컴파일 타임 검사가 기본값인 이유는 분명하다. 오류를 일찍 잡고 런타임 비용도 없다. 다만 정적 분석은 보수적이어서, 실제로는 안전한 프로그램인데도 컴파일러가 확신하지 못해 거절하는 경우가 있다. `RefCell<T>`는 \"내가 보기엔 규칙을 지키는데 컴파일러가 증명하지 못하는\" 상황을 위한 탈출구다.\n\n세 타입을 비교하면 이렇다. `Rc<T>`는 소유자를 여럿 허용하고 `Box<T>`와 `RefCell<T>`는 소유자가 하나다. `Box<T>`는 컴파일 타임에 검사된 불변·가변 빌림을, `Rc<T>`는 불변 빌림만, `RefCell<T>`는 런타임에 검사되는 불변·가변 빌림을 제공한다. 그래서 `RefCell<T>`는 값 자체가 불변이어도 안쪽을 바꿀 수 있다.\n\n전형적인 활용은 테스트용 목(mock) 객체다. 트레이트가 `&self`만 받도록 정의되어 있으면 구현체에서 필드를 바꿀 수 없는데, 테스트 기록용으로는 바꿔야 한다. 트레이트 정의를 테스트 때문에 고칠 수는 없으니 필드를 `RefCell`로 감싼다.\n\n```rust\nuse std::cell::RefCell;\n\ntrait Notifier {\n    fn notify(&self, msg: &str);\n}\n\nstruct RecordingNotifier {\n    seen: RefCell<Vec<String>>,\n}\n\nimpl Notifier for RecordingNotifier {\n    fn notify(&self, msg: &str) {\n        self.seen.borrow_mut().push(String::from(msg));\n    }\n}\n\n#[test]\nfn records_messages() {\n    let n = RecordingNotifier { seen: RefCell::new(vec![]) };\n    n.notify(\"안녕\");\n    assert_eq!(n.seen.borrow().len(), 1);\n}\n```\n\n`&`와 `&mut` 대신 `borrow`와 `borrow_mut` 메서드를 쓴다. `borrow`는 `Ref<T>`를, `borrow_mut`는 `RefMut<T>`를 돌려주는데, 둘 다 `Deref`를 구현해 평범한 참조처럼 다룰 수 있다. `RefCell<T>`는 살아 있는 `Ref<T>`와 `RefMut<T>`의 개수를 세고 있다가 규칙(불변 여럿 또는 가변 하나)을 어기면 그 자리에서 패닉한다.\n\n```rust\nuse std::cell::RefCell;\n\nfn main() {\n    let seen = RefCell::new(Vec::new());\n    let mut first = seen.borrow_mut();\n    first.push(\"a\");\n    let mut second = seen.borrow_mut(); // ❌ 런타임 패닉: 가변 빌림이 이미 살아 있다\n    second.push(\"b\");\n}\n```\n\n이 코드는 **컴파일은 통과하고 실행 중에 실패한다**. (책의 기준인 Rust 1.90에서는 패닉 메시지가 `already borrowed: BorrowMutError`였지만, 1.98에서는 `RefCell already borrowed`로 문구만 바뀌었다. 동작은 같다.) 오류를 늦게 발견하게 되고 빌림을 추적하는 약간의 런타임 비용도 생기지만, 그 대가로 컴파일러가 허락하지 않던 구조를 안전하게 표현할 수 있다.\n\n`Rc<T>`와 `RefCell<T>`를 겹쳐 쓰면 \"여러 소유자가 공유하면서 변경 가능한 값\"이 된다. `Rc<RefCell<T>>` 조합이다.\n\n```rust\nuse std::cell::RefCell;\nuse std::rc::Rc;\n\nfn main() {\n    let shared = Rc::new(RefCell::new(5));\n    let a = Rc::clone(&shared);\n    let b = Rc::clone(&shared);\n\n    *shared.borrow_mut() += 10;\n\n    println!(\"{} {}\", a.borrow(), b.borrow()); // 15 15\n}\n```\n\n마지막으로 `RefCell<T>`도 `Rc<T>`처럼 단일 스레드 전용이다. 멀티스레드에서 같은 일을 하려면 스레드 안전한 다른 타입을 써야 한다.",
       "keyPoints": [
         "RefCell<T>는 빌림 규칙을 컴파일 타임이 아니라 런타임에 검사한다.",
         "규칙을 어기면 컴파일 에러 대신 실행 중 패닉이 발생한다.",
@@ -372,7 +372,7 @@
         {
           "type": "fill",
           "q": "&self만 받는 메서드 안에서 내부 Vec에 값을 추가하려 한다. 빈칸에 들어갈 메서드는?",
-          "code": "impl Notifier for RecordingNotifier {\n    fn notify(&self, msg: &str) {\n        self.seen.___().push(String::from(msg));\n    }\n}",
+          "code": "use std::cell::RefCell;\n\ntrait Notifier {\n    fn notify(&self, msg: &str);\n}\n\nstruct RecordingNotifier {\n    seen: RefCell<Vec<String>>,\n}\n\nimpl Notifier for RecordingNotifier {\n    fn notify(&self, msg: &str) {\n        self.seen.___().push(String::from(msg));\n    }\n}",
           "options": [
             "borrow_mut",
             "borrow",
@@ -384,8 +384,8 @@
         },
         {
           "type": "output",
-          "q": "이 메서드를 호출하면 어떤 일이 일어나는가?",
-          "code": "fn record(&self) {\n    let mut first = self.seen.borrow_mut();\n    let mut second = self.seen.borrow_mut();\n    first.push(String::from(\"a\"));\n    second.push(String::from(\"b\"));\n}",
+          "q": "이 코드를 실행하면 어떤 일이 일어나는가?",
+          "code": "use std::cell::RefCell;\n\nstruct Recorder {\n    seen: RefCell<Vec<String>>,\n}\n\nimpl Recorder {\n    fn record(&self) {\n        let mut first = self.seen.borrow_mut();\n        let mut second = self.seen.borrow_mut();\n        first.push(String::from(\"a\"));\n        second.push(String::from(\"b\"));\n    }\n}\n\nfn main() {\n    let r = Recorder { seen: RefCell::new(vec![]) };\n    r.record();\n}",
           "options": [
             "정상적으로 두 값이 추가된다",
             "컴파일 에러가 난다",
@@ -393,7 +393,7 @@
             "두 번째 borrow_mut가 무시된다"
           ],
           "answer": 2,
-          "explain": "같은 스코프에 가변 빌림이 둘이라 RefCell이 런타임에 규칙 위반을 감지하고 패닉한다."
+          "explain": "같은 RefCell에 가변 빌림이 둘 살아 있어 두 번째 borrow_mut가 런타임에 패닉한다(Rust 1.98 메시지: RefCell already borrowed)."
         },
         {
           "type": "tf",
@@ -490,15 +490,15 @@
         {
           "type": "fill",
           "q": "자식이 부모를 가리키되 소유하지는 않도록 빈칸을 채우세요.",
-          "code": "struct Folder {\n    name: String,\n    parent: RefCell<___<Folder>>,\n    children: RefCell<Vec<Rc<Folder>>>,\n}",
+          "code": "use std::cell::RefCell;\nuse std::rc::{Rc, Weak};\n\nstruct Folder {\n    parent: RefCell<Weak<Folder>>,\n}\n\nfn main() {\n    let root = Rc::new(Folder { parent: RefCell::new(Weak::new()) });\n    let child = Rc::new(Folder { parent: RefCell::new(Weak::new()) });\n    *child.parent.borrow_mut() = Rc::___(&root);\n}",
           "options": [
-            "Weak",
-            "Rc",
-            "Box",
-            "Ref"
+            "downgrade",
+            "clone",
+            "new",
+            "upgrade"
           ],
           "answer": 0,
-          "explain": "Rc를 쓰면 부모-자식이 서로를 소유해 고리가 생긴다. Weak는 소유를 표현하지 않아 해제를 막지 않는다."
+          "explain": "Rc::downgrade는 Weak<T>를 돌려주어 weak_count만 올린다. Rc::clone은 Rc<Folder>라 타입이 맞지 않고(소유도 생겨 고리가 된다), Rc::upgrade라는 함수는 없다."
         },
         {
           "type": "mc",
@@ -515,7 +515,7 @@
         {
           "type": "output",
           "q": "안쪽 스코프가 끝난 뒤 마지막 println!의 출력은?",
-          "code": "let child = Rc::new(Folder::new(\"src\"));\n{\n    let root = Rc::new(Folder::with_child(\"project\", &child));\n    *child.parent.borrow_mut() = Rc::downgrade(&root);\n}\nprintln!(\"{:?}\", child.parent.borrow().upgrade().is_some());",
+          "code": "use std::cell::RefCell;\nuse std::rc::{Rc, Weak};\n\nstruct Folder {\n    parent: RefCell<Weak<Folder>>,\n    children: RefCell<Vec<Rc<Folder>>>,\n}\n\nfn make(children: Vec<Rc<Folder>>) -> Rc<Folder> {\n    Rc::new(Folder {\n        parent: RefCell::new(Weak::new()),\n        children: RefCell::new(children),\n    })\n}\n\nfn main() {\n    let child = make(vec![]);\n    {\n        let root = make(vec![Rc::clone(&child)]);\n        *child.parent.borrow_mut() = Rc::downgrade(&root);\n    }\n    println!(\"{}\", child.parent.borrow().upgrade().is_some());\n}",
           "options": [
             "true",
             "컴파일 에러",
@@ -527,8 +527,8 @@
         },
         {
           "type": "output",
-          "q": "안쪽 스코프 안에서 child의 강한 카운트와 약한 카운트는 각각 얼마인가? (root가 child를 children에 clone해 담고, child는 root를 Weak로 가리킨다)",
-          "code": "println!(\"{} {}\", Rc::strong_count(&child), Rc::weak_count(&child));",
+          "q": "안쪽 스코프 안에서 출력되는 child의 강한 카운트와 약한 카운트는?",
+          "code": "use std::cell::RefCell;\nuse std::rc::{Rc, Weak};\n\nstruct Folder {\n    parent: RefCell<Weak<Folder>>,\n    children: RefCell<Vec<Rc<Folder>>>,\n}\n\nfn make(children: Vec<Rc<Folder>>) -> Rc<Folder> {\n    Rc::new(Folder {\n        parent: RefCell::new(Weak::new()),\n        children: RefCell::new(children),\n    })\n}\n\nfn main() {\n    let child = make(vec![]);\n    {\n        let root = make(vec![Rc::clone(&child)]);\n        *child.parent.borrow_mut() = Rc::downgrade(&root);\n        println!(\"{} {}\", Rc::strong_count(&child), Rc::weak_count(&child));\n    }\n}",
           "options": [
             "1 0",
             "2 0",

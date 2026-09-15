@@ -64,9 +64,10 @@ const PG = 'https://play.rust-lang.org';
 const snippets = [];
 const pgSource = code => /\bfn\s+main\s*\(/.test(code) ? code : `#![allow(unused)]\nfn main() {\n${code}\n}`;
 const pgLink = code => `${PG}/?version=stable&edition=2024&code=${encodeURIComponent(pgSource(code))}`;
-function runnable(code) {
+function runnable(code, run = true) {
   const i = snippets.push(code) - 1;
-  return `<div class="runwrap">${codeBlock(code)}<div class="runbar"><button class="run" data-i="${i}">▶ 실행</button><a class="pg" href="${pgLink(code)}" target="_blank" rel="noopener">Playground에서 열기 ↗</a></div><pre class="out" id="out-${i}" hidden></pre></div>`;
+  const btn = run ? `<button class="run" data-i="${i}">▶ 실행</button>` : `<span class="norun">단독 실행 불가 (크레이트/다중 파일 예제)</span>`;
+  return `<div class="runwrap">${codeBlock(code)}<div class="runbar">${btn}<a class="pg" href="${pgLink(code)}" target="_blank" rel="noopener">Playground에서 열기 ↗</a></div><pre class="out" id="out-${i}" hidden></pre></div>`;
 }
 async function runSnippet(i) {
   const out = $('#out-' + i, L.el), btn = L.el.querySelector(`.run[data-i="${i}"]`);
@@ -84,10 +85,14 @@ async function runSnippet(i) {
 }
 function md(text) {
   // minimal markdown: ```code```, paragraphs, **bold**, `code`, "- " lists
-  const parts = text.split(/```(rust|toml|text|bash|console|sh)?\n?([\s\S]*?)```/g);
+  const parts = text.split(/```([\w,+-]*)\n?([\s\S]*?)^```/gm); // 닫는 ```는 줄 첫머리에만 (문서 주석 안의 ``` 예제 보호)
   return parts.map((p, i) => {
     if (i % 3 === 1) return ''; // language tag
-    if (i % 3 === 2) { const c = p.replace(/\n$/, ''); return parts[i - 1] && parts[i - 1] !== 'rust' ? codeBlock(c) : runnable(c); }
+    if (i % 3 === 2) {
+      const c = p.replace(/\n$/, ''), tag = parts[i - 1] || 'rust';
+      // ▶ 실행 버튼은 `rust`(또는 태그 없음)에만. `rust,no_run`/`rust,ignore`는 강조만(크레이트 루트·다중 파일·외부 크레이트 예제).
+      return tag === 'rust' ? runnable(c) : tag.startsWith('rust') ? runnable(c, false) : `<pre class="code">${esc(c)}</pre>`;
+    }
     return p.split(/\n\s*\n/).filter(s => s.trim()).map(par => {
       const lines = par.trim().split('\n');
       const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');

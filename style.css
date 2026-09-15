@@ -170,3 +170,4 @@ pre.code{background:#2b2b2b;color:#f2f2f2;padding:14px;border-radius:12px;overfl
 pre.out{margin:0;background:#0d1117;color:#7ee787;border:1px solid #333;border-top:0;border-radius:0 0 12px 12px;padding:12px 14px;font-size:13px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow:auto}
 pre.out.err{color:#ffa198}
 .runwrap:has(.out:not([hidden])) .runbar{border-radius:0}
+.runbar .norun{color:#bbb;font-size:12px;font-weight:700}

@@ -46,6 +46,28 @@ python3 -m http.server 8000   # 그 후 http://localhost:8000
 python3 validate_data.py
 ```
 
+## 검증 (2026-09-15 기준)
+
+모든 레슨 데이터를 두 축으로 검증했습니다.
+
+1. **자동 컴파일 검사**: 해설 코드 블록과 문제 코드(출력 예측·빈칸·순서)를 Rust Playground(stable 1.98.1, 2024 edition)에서 실제 컴파일·실행해 정답과 대조. 스크립트는 `scratch` 성격이라 저장소에 포함하지 않았습니다.
+2. **챕터별 원문 대조**: 22개 챕터를 각각 원서 본문과 문장 단위로 대조하고, 자동 검사에서 나온 항목을 하나씩 처리. 정답이 둘인 문제, 정답이 없는 문제, 문맥 없이 컴파일되지 않는 조각을 모두 수정했습니다.
+
+**책(Rust 1.90)과 현재(Rust 1.98.1) 사이 차이로 해설에 주석을 달아둔 항목**
+
+| 위치 | 내용 |
+|---|---|
+| 2장 | 책은 rand 0.8.5(`thread_rng`/`gen_range`). rand 0.9부터 `rand::rng()`/`random_range()`로 개명, 2026-09 현재 최신은 0.10 계열. Playground에는 0.10이 설치되어 있어 책 코드는 그곳에서 컴파일되지 않음 |
+| 9장 | 패닉 메시지에 스레드 ID가 붙음: `thread 'main' (13) panicked at ...` |
+| 11장 | Rust 1.93부터 `#[test]`를 트레이트 메서드·타입에 붙이면 컴파일 에러 |
+| 14장 | Cargo 1.91 `build.build-dir`, Cargo 1.97 `-m`(`--manifest-path` 단축) |
+| 15장 | RefCell 이중 빌림 패닉 메시지가 `RefCell already borrowed`로 변경 |
+| 17장 | trpl 크레이트의 `block_on`/`select`는 최신판에서 `run`/`race`로도 제공. 책 이름을 기준으로 함 |
+| 19장 | let 체인(`if let ... && cond`)이 1.88 / 2024 edition에서 안정화되어 책의 "조건을 합칠 수 없다" 서술은 더 이상 사실이 아님 |
+| 22장 | 현재 stable 1.98.1 · beta 1.99 · nightly 1.100, 2024 edition은 1.85(2025-02)에서 도입, `gen`은 2024 edition 예약어 |
+
+**실행 버튼이 붙지 않는 블록**: 다중 파일·크레이트 루트·외부 크레이트 전용 예제는 ` ```rust,no_run `으로 표기되어 "▶ 실행" 대신 "Playground에서 열기"만 제공합니다.
+
 ## 알아두기
 
 Playground 실행 API는 비공식이며 속도 제한이 있습니다. 실행 버튼이 실패하면 옆의 "Playground에서 열기"를 사용하세요.

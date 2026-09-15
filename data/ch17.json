@@ -10,7 +10,7 @@
     {
       "id": "ch17-1",
       "title": "퓨처와 async/await 문법",
-      "summary": "먼저 용어부터 구분해야 합니다. **동시성(concurrency)** 은 여러 작업을 번갈아 진행시키는 것이고, **병렬성(parallelism)** 은 여러 작업을 실제로 같은 순간에 진행시키는 것입니다. 요리사 한 명이 냄비를 저으면서 중간중간 채소를 써는 것은 동시성이고, 요리사 두 명이 각자 다른 요리를 맡는 것은 병렬성입니다. 비동기 프로그래밍은 주로 동시성을 다루는 도구이며, 특히 \"기다리는 시간\"이 많은 작업(네트워크 응답, 디스크 읽기)에서 빛을 발합니다.\n\n**future(퓨처)** 는 \"지금은 준비되지 않았지만 언젠가 준비될 값\"을 나타내는 값입니다. 다른 언어에서 promise나 task라고 부르는 것과 비슷한 개념이고, Rust에서는 `Future` 트레이트를 구현한 타입이 곧 퓨처입니다. 각 퓨처는 자기가 어디까지 진행되었는지를 스스로 기억합니다.\n\n`async` 키워드를 함수나 블록에 붙이면 \"이 코드는 중간에 멈췄다가 다시 이어질 수 있다\"는 뜻이 됩니다. 그리고 그 안에서 `.await`를 쓰면 퓨처가 준비될 때까지 기다립니다. Rust의 `await`는 앞이 아니라 **뒤에 붙는 후위 키워드**라서 메서드 체인과 잘 어울립니다.\n\n```rust\nuse trpl::Html;\n\nasync fn heading_text(url: &str) -> Option<String> {\n    let body = trpl::get(url).await.text().await;\n    Html::parse(&body)\n        .select_first(\"h1\")\n        .map(|el| el.inner_html())\n}\n```\n\n여기서 가장 중요한 성질은 **퓨처가 게으르다(lazy)** 는 점입니다. 퓨처를 만들기만 하고 `.await` 하지 않으면 아무 일도 일어나지 않습니다. 이터레이터가 `next`를 호출하기 전까지 아무것도 하지 않는 것과 똑같은 설계이며, 실제로 퓨처를 만들고 쓰지 않으면 컴파일러가 경고를 띄웁니다. 스레드를 `thread::spawn`으로 만들면 즉시 달리기 시작하는 것과는 정반대입니다.\n\n`async fn`은 사실 문법 설탕입니다. 컴파일러는 이것을 \"반환 타입의 퓨처를 돌려주는 평범한 함수\"로 바꿉니다. 아래 두 정의는 개념적으로 같습니다.\n\n```rust\nasync fn double(n: u32) -> u32 { n * 2 }\n\n// 컴파일러가 만드는 형태와 대략 같다\nfn double_desugared(n: u32) -> impl std::future::Future<Output = u32> {\n    async move { n * 2 }\n}\n```\n\n퓨처를 실제로 굴리려면 **런타임(runtime)** 이 필요합니다. Rust 표준 라이브러리에는 런타임이 들어 있지 않고, 용도에 맞는 런타임을 크레이트로 골라 씁니다(웹 서버용 tokio, 임베디드용 embassy 등). 그래서 `main`은 `async fn`으로 만들 수 없고(`error[E0752]`), `main` 안에서 런타임을 세운 뒤 퓨처를 넘겨야 합니다. 이 챕터에서는 학습용 `trpl` 크레이트의 `trpl::block_on`을 씁니다. 이 함수는 퓨처를 끝까지 실행하고 그 결과값을 돌려주며, 현재 스레드를 막아 동기 세계와 비동기 세계의 경계를 만들어 줍니다. (참고로 더 새로운 `trpl` 버전에서는 `block_on`과 `select`가 각각 `run`, `race`라는 이름으로 바뀌었습니다.)\n\n```rust\nfn main() {\n    let answer = trpl::block_on(async {\n        double(21).await\n    });\n    println!(\"{answer}\");\n}\n```\n\n마지막으로, 코드 안의 모든 `.await` 지점은 **런타임에게 제어권을 돌려줄 수 있는 지점**입니다. 컴파일러는 async 블록을 보이지 않는 상태 머신으로 바꾸어, 각 await 지점에서 필요한 데이터를 보관했다가 재개할 때 되살립니다. 이 상태 머신을 실제로 돌리는 주체가 런타임(정확히는 그 안의 executor)입니다.",
+      "summary": "먼저 용어부터 구분해야 합니다. **동시성(concurrency)** 은 여러 작업을 번갈아 진행시키는 것이고, **병렬성(parallelism)** 은 여러 작업을 실제로 같은 순간에 진행시키는 것입니다. 요리사 한 명이 냄비를 저으면서 중간중간 채소를 써는 것은 동시성이고, 요리사 두 명이 각자 다른 요리를 맡는 것은 병렬성입니다. 비동기 프로그래밍은 주로 동시성을 다루는 도구이며, 특히 \"기다리는 시간\"이 많은 작업(네트워크 응답, 디스크 읽기)에서 빛을 발합니다.\n\n**future(퓨처)** 는 \"지금은 준비되지 않았지만 언젠가 준비될 값\"을 나타내는 값입니다. 다른 언어에서 promise나 task라고 부르는 것과 비슷한 개념이고, Rust에서는 `Future` 트레이트를 구현한 타입이 곧 퓨처입니다. 각 퓨처는 자기가 어디까지 진행되었는지를 스스로 기억합니다.\n\n`async` 키워드를 함수나 블록에 붙이면 \"이 코드는 중간에 멈췄다가 다시 이어질 수 있다\"는 뜻이 됩니다. 그리고 그 안에서 `.await`를 쓰면 퓨처가 준비될 때까지 기다립니다. Rust의 `await`는 앞이 아니라 **뒤에 붙는 후위 키워드**라서 메서드 체인과 잘 어울립니다.\n\n```rust\nuse trpl::Html;\n\nasync fn heading_text(url: &str) -> Option<String> {\n    let body = trpl::get(url).await.text().await;\n    Html::parse(&body)\n        .select_first(\"h1\")\n        .map(|el| el.inner_html())\n}\n```\n\n여기서 가장 중요한 성질은 **퓨처가 게으르다(lazy)** 는 점입니다. 퓨처를 만들기만 하고 `.await` 하지 않으면 아무 일도 일어나지 않습니다. 이터레이터가 `next`를 호출하기 전까지 아무것도 하지 않는 것과 똑같은 설계이며, 실제로 퓨처를 만들고 쓰지 않으면 컴파일러가 경고를 띄웁니다. 스레드를 `thread::spawn`으로 만들면 즉시 달리기 시작하는 것과는 정반대입니다.\n\n`async fn`은 사실 문법 설탕입니다. 컴파일러는 이것을 \"반환 타입의 퓨처를 돌려주는 평범한 함수\"로 바꿉니다. 아래 두 정의는 개념적으로 같습니다.\n\n```rust\nasync fn double(n: u32) -> u32 { n * 2 }\n\n// 컴파일러가 만드는 형태와 대략 같다\nfn double_desugared(n: u32) -> impl std::future::Future<Output = u32> {\n    async move { n * 2 }\n}\n```\n\n퓨처를 실제로 굴리려면 **런타임(runtime)** 이 필요합니다. Rust 표준 라이브러리에는 런타임이 들어 있지 않고, 용도에 맞는 런타임을 크레이트로 골라 씁니다(웹 서버용 tokio, 임베디드용 embassy 등). 그래서 `main`은 `async fn`으로 만들 수 없고(`error[E0752]`), `main` 안에서 런타임을 세운 뒤 퓨처를 넘겨야 합니다. 이 챕터에서는 학습용 `trpl` 크레이트의 `trpl::block_on`을 씁니다. 이 함수는 퓨처를 끝까지 실행하고 그 결과값을 돌려주며, 현재 스레드를 막아 동기 세계와 비동기 세계의 경계를 만들어 줍니다. (참고로 최신 `trpl`에서는 `block_on`과 `select`가 각각 `run`, `race`로 이름이 바뀌었습니다. 2026년 현재 Rust 1.98 기준으로 두 이름 모두 쓸 수 있으니 이 챕터에서는 책과 같은 `block_on`/`select`를 씁니다.)\n\n```rust\nasync fn double(n: u32) -> u32 { n * 2 }\n\nfn main() {\n    let answer = trpl::block_on(async {\n        double(21).await\n    });\n    println!(\"{answer}\");\n}\n```\n\n마지막으로, 코드 안의 모든 `.await` 지점은 **런타임에게 제어권을 돌려줄 수 있는 지점**입니다. 컴파일러는 async 블록을 보이지 않는 상태 머신으로 바꾸어, 각 await 지점에서 필요한 데이터를 보관했다가 재개할 때 되살립니다. 이 상태 머신을 실제로 돌리는 주체가 런타임(정확히는 그 안의 executor)입니다.",
       "keyPoints": [
         "동시성은 작업을 번갈아 진행하는 것, 병렬성은 실제로 동시에 진행하는 것이다.",
         "퓨처는 게을러서 `.await` 하기 전에는 아무 일도 하지 않는다.",
@@ -43,13 +43,13 @@
           "q": "이 코드를 실행하면 무엇이 출력될까?",
           "code": "async fn greet() {\n    println!(\"hello\");\n}\n\nfn main() {\n    trpl::block_on(async {\n        let fut = greet();\n        println!(\"future created\");\n    });\n}",
           "options": [
-            "hello\\nfuture created",
-            "future created\\nhello",
+            "hello\nfuture created",
+            "future created\nhello",
             "future created",
             "컴파일 에러"
           ],
           "answer": 2,
-          "explain": "`greet()`는 퓨처를 만들기만 할 뿐 `.await` 하지 않았으므로 본문이 실행되지 않는다. 컴파일은 되지만 사용하지 않은 퓨처에 대한 경고가 뜬다."
+          "explain": "`greet()`는 퓨처를 만들기만 할 뿐 `.await` 하지 않았으므로 본문이 실행되지 않는다. 컴파일은 되지만 `fut`이 쓰이지 않는다는 경고가 뜬다."
         },
         {
           "type": "fill",
@@ -82,11 +82,12 @@
           "items": [
             "fn main() {",
             "    trpl::block_on(async {",
-            "        let len = body_len(\"https://www.rust-lang.org\").await;",
-            "        println!(\"{len} bytes\");",
-            "    });"
+            "        let body = trpl::get(\"https://www.rust-lang.org\").await.text().await;",
+            "        println!(\"{} bytes\", body.len());",
+            "    });",
+            "}"
           ],
-          "explain": "`main`은 동기 함수이고, 그 안에서 `trpl::block_on`에 async 블록을 넘겨야 비로소 블록 안에서 `.await`를 쓸 수 있다. (닫는 중괄호는 생략)"
+          "explain": "`main`은 동기 함수이고, 그 안에서 `trpl::block_on`에 async 블록을 넘겨야 비로소 블록 안에서 `.await`를 쓸 수 있다. 블록을 닫은 뒤 `main`의 중괄호까지 닫아야 완성된다."
         },
         {
           "type": "match",
@@ -120,7 +121,7 @@
     {
       "id": "ch17-2",
       "title": "퓨처 경쟁시키기와 태스크",
-      "summary": "퓨처 하나를 기다리는 것만으로는 동시성이 생기지 않습니다. 여러 퓨처를 한꺼번에 런타임에 넘겨야 비로소 번갈아 진행됩니다. 가장 단순한 조합은 **경쟁(race)** 입니다. `trpl::select`는 두 퓨처를 받아 먼저 끝난 쪽의 결과를 돌려줍니다.\n\n둘 중 어느 쪽이 이겨도 정상이므로 `Result`는 어울리지 않습니다. 그래서 `trpl::select`는 `Either`를 돌려줍니다. `Either`는 성공/실패라는 의미가 없는, 그냥 \"둘 중 하나\"를 나타내는 열거형입니다.\n\n```rust\nenum Either<A, B> {\n    Left(A),\n    Right(B),\n}\n```\n\n첫 번째 인수가 이기면 `Left`, 두 번째가 이기면 `Right`입니다. 한 가지 중요한 성질은 `select`가 **공정하지 않다(not fair)** 는 것입니다. 항상 인수 순서대로 폴링하므로, 두 퓨처가 동시에 준비되면 왼쪽이 이깁니다. 이 성질은 나중에 타임아웃을 만들 때 유용하게 쓰입니다.\n\n```rust\nuse trpl::Either;\n\ntrpl::block_on(async {\n    let quick = async { \"cache\" };\n    let slow = async {\n        trpl::sleep(Duration::from_millis(200)).await;\n        \"network\"\n    };\n\n    match trpl::select(quick, slow).await {\n        Either::Left(v) => println!(\"왼쪽 승: {v}\"),\n        Either::Right(v) => println!(\"오른쪽 승: {v}\"),\n    }\n});\n```\n\n스레드처럼 별도의 실행 단위를 만들고 싶다면 `trpl::spawn_task`를 씁니다. 이름도 동작도 `thread::spawn`과 닮았지만, OS 스레드가 아니라 런타임이 관리하는 **태스크**를 만듭니다. 주의할 점은 메인 async 블록이 끝나면 태스크도 함께 종료된다는 것입니다. 끝까지 기다리려면 반환된 핸들을 `.await` 해야 하는데, 이 핸들 자체가 퓨처이고 `Output`이 `Result`라서 보통 `.await.unwrap()` 형태로 씁니다.\n\n```rust\nlet handle = trpl::spawn_task(async {\n    for i in 1..4 {\n        println!(\"task {i}\");\n        trpl::sleep(Duration::from_millis(50)).await;\n    }\n    \"done\"\n});\n\nprintln!(\"{}\", handle.await.unwrap());\n```\n\n사실 여기서는 태스크조차 필요 없습니다. async 블록 자체가 퓨처이므로, 두 블록을 `trpl::join`에 넘기면 런타임이 둘 다 끝까지 굴려 줍니다. `join`은 두 퓨처의 결과를 튜플로 묶은 새 퓨처를 만들기 때문에, 개별 퓨처가 아니라 **`join`이 만든 퓨처를 `.await` 해야** 합니다. 개별 퓨처를 차례로 await하면 그냥 순차 실행이 되어 버립니다.\n\n`join`의 또 다른 특징은 **공정하다**는 점입니다. 두 퓨처를 번갈아 똑같이 확인하므로 출력 순서가 매번 같습니다. 스레드에서는 OS 스케줄러가 순서를 정하기 때문에 실행할 때마다 순서가 달라지던 것과 대비됩니다. 물론 모든 런타임과 모든 조합 함수가 공정성을 보장하지는 않으니, 쓰는 API의 문서를 확인하는 습관이 필요합니다.",
+      "summary": "퓨처 하나를 기다리는 것만으로는 동시성이 생기지 않습니다. 여러 퓨처를 한꺼번에 런타임에 넘겨야 비로소 번갈아 진행됩니다. 가장 단순한 조합은 **경쟁(race)** 입니다. `trpl::select`는 두 퓨처를 받아 먼저 끝난 쪽의 결과를 돌려줍니다.\n\n둘 중 어느 쪽이 이겨도 정상이므로 `Result`는 어울리지 않습니다. 그래서 `trpl::select`는 `Either`를 돌려줍니다. `Either`는 성공/실패라는 의미가 없는, 그냥 \"둘 중 하나\"를 나타내는 열거형입니다.\n\n```rust\nenum Either<A, B> {\n    Left(A),\n    Right(B),\n}\n```\n\n첫 번째 인수가 이기면 `Left`, 두 번째가 이기면 `Right`입니다. 한 가지 중요한 성질은 `select`가 **공정하지 않다(not fair)** 는 것입니다. 항상 인수 순서대로 폴링하므로, 두 퓨처가 동시에 준비되면 왼쪽이 이깁니다. 이 성질은 나중에 타임아웃을 만들 때 유용하게 쓰입니다.\n\n```rust\nuse std::time::Duration;\nuse trpl::Either;\n\nfn main() {\n    trpl::block_on(async {\n        let quick = async { \"cache\" };\n        let slow = async {\n            trpl::sleep(Duration::from_millis(200)).await;\n            \"network\"\n        };\n\n        match trpl::select(quick, slow).await {\n            Either::Left(v) => println!(\"왼쪽 승: {v}\"),\n            Either::Right(v) => println!(\"오른쪽 승: {v}\"),\n        }\n    });\n}\n```\n\n스레드처럼 별도의 실행 단위를 만들고 싶다면 `trpl::spawn_task`를 씁니다. 이름도 동작도 `thread::spawn`과 닮았지만, OS 스레드가 아니라 런타임이 관리하는 **태스크**를 만듭니다. 주의할 점은 메인 async 블록이 끝나면 태스크도 함께 종료된다는 것입니다. 끝까지 기다리려면 반환된 핸들을 `.await` 해야 하는데, 이 핸들 자체가 퓨처이고 `Output`이 `Result`라서 보통 `.await.unwrap()` 형태로 씁니다.\n\n```rust\nuse std::time::Duration;\n\nfn main() {\n    trpl::block_on(async {\n        let handle = trpl::spawn_task(async {\n            for i in 1..4 {\n                println!(\"task {i}\");\n                trpl::sleep(Duration::from_millis(50)).await;\n            }\n            \"done\"\n        });\n\n        println!(\"{}\", handle.await.unwrap());\n    });\n}\n```\n\n사실 여기서는 태스크조차 필요 없습니다. async 블록 자체가 퓨처이므로, 두 블록을 `trpl::join`에 넘기면 런타임이 둘 다 끝까지 굴려 줍니다. `join`은 두 퓨처의 결과를 튜플로 묶은 새 퓨처를 만들기 때문에, 개별 퓨처가 아니라 **`join`이 만든 퓨처를 `.await` 해야** 합니다. 개별 퓨처를 차례로 await하면 그냥 순차 실행이 되어 버립니다.\n\n`join`의 또 다른 특징은 **공정하다**는 점입니다. 두 퓨처를 번갈아 똑같이 확인하므로 출력 순서가 매번 같습니다. 스레드에서는 OS 스케줄러가 순서를 정하기 때문에 실행할 때마다 순서가 달라지던 것과 대비됩니다. 물론 모든 런타임과 모든 조합 함수가 공정성을 보장하지는 않으니, 쓰는 API의 문서를 확인하는 습관이 필요합니다.",
       "keyPoints": [
         "`trpl::select`는 먼저 끝난 퓨처의 결과를 `Either::Left`/`Either::Right`로 돌려준다.",
         "`select`는 공정하지 않고 항상 인수 순서대로 폴링한다.",
@@ -144,12 +145,12 @@
         {
           "type": "output",
           "q": "이 코드의 출력은?",
-          "code": "trpl::block_on(async {\n    let a = async {\n        println!(\"a1\");\n        trpl::yield_now().await;\n        println!(\"a2\");\n    };\n    let b = async {\n        println!(\"b1\");\n        println!(\"b2\");\n    };\n    trpl::select(a, b).await;\n});",
+          "code": "fn main() {\n    trpl::block_on(async {\n        let a = async {\n            println!(\"a1\");\n            trpl::yield_now().await;\n            println!(\"a2\");\n        };\n        let b = async {\n            println!(\"b1\");\n            println!(\"b2\");\n        };\n        trpl::select(a, b).await;\n    });\n}",
           "options": [
-            "a1\\nb1\\nb2",
-            "a1\\na2\\nb1\\nb2",
-            "b1\\nb2\\na1\\na2",
-            "a1\\nb1\\nb2\\na2"
+            "a1\nb1\nb2",
+            "a1\na2\nb1\nb2",
+            "b1\nb2\na1\na2",
+            "a1\nb1\nb2\na2"
           ],
           "answer": 0,
           "explain": "`select`는 왼쪽부터 폴링한다. a가 \"a1\"을 찍고 양보하자 b가 폴링되어 \"b1\", \"b2\"를 찍고 완료되므로 select가 즉시 끝나고 \"a2\"는 영영 실행되지 않는다."
@@ -163,7 +164,7 @@
         {
           "type": "fill",
           "q": "태스크가 끝날 때까지 기다려 값을 받도록 빈칸을 채우세요.",
-          "code": "let handle = trpl::spawn_task(async { 7 * 6 });\nlet value = ___;\nprintln!(\"{value}\");",
+          "code": "trpl::block_on(async {\n    let handle = trpl::spawn_task(async { 7 * 6 });\n    let value = ___;\n    println!(\"{value}\");\n});",
           "options": [
             "handle.join().unwrap()",
             "handle.unwrap().await",
@@ -176,7 +177,7 @@
         {
           "type": "mc",
           "q": "다음 코드가 두 루프를 동시에 진행시키지 못하는 이유는?",
-          "code": "let fut1 = async { /* 루프 1 */ };\nlet fut2 = async { /* 루프 2 */ };\n\nfut1.await;\nfut2.await;",
+          "code": "trpl::block_on(async {\n    let fut1 = async { /* 루프 1 */ };\n    let fut2 = async { /* 루프 2 */ };\n\n    fut1.await;\n    fut2.await;\n});",
           "options": [
             "async 블록에 move가 빠졌기 때문",
             "각 퓨처를 차례로 await하면 앞의 것이 끝난 뒤에야 다음이 시작되기 때문",
@@ -190,13 +191,14 @@
           "type": "order",
           "q": "두 퓨처를 경쟁시켜 먼저 끝난 결과를 출력하는 코드를 올바른 순서로 배열하세요.",
           "items": [
-            "let fut1 = fetch_title(&args[1]);",
-            "let fut2 = fetch_title(&args[2]);",
+            "let fut1 = page_title(&args[1]);",
+            "let fut2 = page_title(&args[2]);",
             "let winner = match trpl::select(fut1, fut2).await {",
             "    Either::Left(left) => left,",
-            "    Either::Right(right) => right,"
+            "    Either::Right(right) => right,",
+            "};"
           ],
-          "explain": "퓨처를 먼저 만들어 두어도 게으르기 때문에 실행되지 않는다. `select`에 넘겨 await하는 순간부터 두 퓨처가 함께 진행되며, 첫 인수가 이기면 `Left`다."
+          "explain": "퓨처를 먼저 만들어 두어도 게으르기 때문에 실행되지 않는다. `select`에 넘겨 await하는 순간부터 두 퓨처가 함께 진행되며, 첫 인수가 이기면 `Left`다. `match`가 값을 만드는 표현식이므로 마지막에 `};`로 닫는다."
         },
         {
           "type": "match",
@@ -226,7 +228,7 @@
     {
       "id": "ch17-3",
       "title": "비동기 채널로 메시지 주고받기",
-      "summary": "스레드에서 쓰던 채널의 비동기 버전이 `trpl::channel`입니다. 여전히 다중 생산자·단일 소비자(mpsc)이지만 두 가지가 다릅니다. 수신자 `rx`를 가변으로 받아야 하고, `recv`가 값을 곧바로 주는 대신 **퓨처를 돌려주므로 await** 해야 합니다.\n\n```rust\nlet (tx, mut rx) = trpl::channel();\n\ntx.send(String::from(\"안녕\")).unwrap();\nlet msg = rx.recv().await.unwrap();\nprintln!(\"{msg}\");\n```\n\n동기 채널의 `recv`는 메시지가 올 때까지 스레드를 막지만, 비동기 `recv`는 막는 대신 런타임에 제어권을 넘깁니다. 반면 `send`는 await하지 않습니다. 이 채널은 용량 제한이 없어서 보내는 쪽이 기다릴 이유가 없기 때문입니다.\n\n메시지가 몇 개 올지 모를 때는 `while let` 반복문을 씁니다. `recv().await`가 `Some(v)`를 주는 동안 계속 돌고, 채널이 닫혀 `None`이 나오면 반복이 끝납니다.\n\n```rust\nwhile let Some(value) = rx.recv().await {\n    println!(\"받음: {value}\");\n}\n```\n\n여기서 초보자가 반드시 부딪히는 함정이 둘 있습니다. 첫째, **하나의 async 블록 안에서는 코드가 순차적으로 실행됩니다.** 보내기 루프와 받기 루프를 같은 블록에 나란히 쓰면, 보내기가 전부 끝난 뒤에야 받기가 시작됩니다. 동시성을 얻으려면 보내는 쪽과 받는 쪽을 **각각 별도의 async 블록**으로 만들고 `trpl::join`으로 묶어야 합니다.\n\n둘째, 프로그램이 끝나지 않는 문제입니다. `while let`은 채널이 닫혀야 끝나고, 채널은 모든 `tx`가 드롭되어야 닫힙니다. 그런데 async 블록이 `tx`를 빌리기만 하면 `tx`는 바깥 블록이 끝날 때까지 살아 있고, 바깥 블록은 `join`이 끝나기를 기다리는 교착 상태가 됩니다. 해법은 클로저에서와 똑같이 **`async move`** 로 소유권을 블록 안으로 옮기는 것입니다. 그러면 블록이 끝나는 순간 `tx`가 드롭되고 채널이 닫힙니다.\n\n```rust\nlet (tx, mut rx) = trpl::channel();\n\nlet send_fut = async move {          // move가 핵심\n    for word in [\"하나\", \"둘\", \"셋\"] {\n        tx.send(word.to_string()).unwrap();\n        trpl::sleep(Duration::from_millis(300)).await;\n    }\n};\n\nlet recv_fut = async {\n    while let Some(v) = rx.recv().await {\n        println!(\"받음: {v}\");\n    }\n};\n\ntrpl::join(send_fut, recv_fut).await;\n```\n\n생산자를 늘리고 싶으면 `tx.clone()`으로 송신자를 복제해 각 블록으로 옮기면 됩니다. 다만 퓨처가 셋 이상이 되면 인수 두 개짜리 `trpl::join` 대신 **`trpl::join!` 매크로**를 씁니다. 이 매크로는 컴파일 타임에 개수를 아는 임의 개수의 퓨처를 한꺼번에 기다립니다. 이때도 모든 송신자 블록이 `async move`여야 채널이 제대로 닫힌다는 점을 잊지 마세요.",
+      "summary": "스레드에서 쓰던 채널의 비동기 버전이 `trpl::channel`입니다. 여전히 다중 생산자·단일 소비자(mpsc)이지만 두 가지가 다릅니다. 수신자 `rx`를 가변으로 받아야 하고, `recv`가 값을 곧바로 주는 대신 **퓨처를 돌려주므로 await** 해야 합니다.\n\n```rust\nfn main() {\n    trpl::block_on(async {\n        let (tx, mut rx) = trpl::channel();\n\n        tx.send(String::from(\"안녕\")).unwrap();\n        let msg = rx.recv().await.unwrap();\n        println!(\"{msg}\");\n    });\n}\n```\n\n동기 채널의 `recv`는 메시지가 올 때까지 스레드를 막지만, 비동기 `recv`는 막는 대신 런타임에 제어권을 넘깁니다. 반면 `send`는 await하지 않습니다. 이 채널은 용량 제한이 없어서 보내는 쪽이 기다릴 이유가 없기 때문입니다.\n\n메시지가 몇 개 올지 모를 때는 `while let` 반복문을 씁니다. `recv().await`가 `Some(v)`를 주는 동안 계속 돌고, 채널이 닫혀 `None`이 나오면 반복이 끝납니다.\n\n```rust\nfn main() {\n    trpl::block_on(async {\n        let (tx, mut rx) = trpl::channel();\n        tx.send(1).unwrap();\n        tx.send(2).unwrap();\n        drop(tx); // 송신자가 모두 사라져야 채널이 닫힌다\n\n        while let Some(value) = rx.recv().await {\n            println!(\"받음: {value}\");\n        }\n    });\n}\n```\n\n여기서 초보자가 반드시 부딪히는 함정이 둘 있습니다. 첫째, **하나의 async 블록 안에서는 코드가 순차적으로 실행됩니다.** 보내기 루프와 받기 루프를 같은 블록에 나란히 쓰면, 보내기가 전부 끝난 뒤에야 받기가 시작됩니다. 동시성을 얻으려면 보내는 쪽과 받는 쪽을 **각각 별도의 async 블록**으로 만들고 `trpl::join`으로 묶어야 합니다.\n\n둘째, 프로그램이 끝나지 않는 문제입니다. `while let`은 채널이 닫혀야 끝나고, 채널은 모든 `tx`가 드롭되어야 닫힙니다. 그런데 async 블록이 `tx`를 빌리기만 하면 `tx`는 바깥 블록이 끝날 때까지 살아 있고, 바깥 블록은 `join`이 끝나기를 기다리는 교착 상태가 됩니다. 해법은 클로저에서와 똑같이 **`async move`** 로 소유권을 블록 안으로 옮기는 것입니다. 그러면 블록이 끝나는 순간 `tx`가 드롭되고 채널이 닫힙니다.\n\n```rust\nuse std::time::Duration;\n\nfn main() {\n    trpl::block_on(async {\n        let (tx, mut rx) = trpl::channel();\n\n        let send_fut = async move {          // move가 핵심\n            for word in [\"하나\", \"둘\", \"셋\"] {\n                tx.send(word.to_string()).unwrap();\n                trpl::sleep(Duration::from_millis(300)).await;\n            }\n        };\n\n        let recv_fut = async {\n            while let Some(v) = rx.recv().await {\n                println!(\"받음: {v}\");\n            }\n        };\n\n        trpl::join(send_fut, recv_fut).await;\n    });\n}\n```\n\n생산자를 늘리고 싶으면 `tx.clone()`으로 송신자를 복제해 각 블록으로 옮기면 됩니다. 다만 퓨처가 셋 이상이 되면 인수 두 개짜리 `trpl::join` 대신 **`trpl::join!` 매크로**를 씁니다. 이 매크로는 컴파일 타임에 개수를 아는 임의 개수의 퓨처를 한꺼번에 기다립니다. 이때도 모든 송신자 블록이 `async move`여야 채널이 제대로 닫힌다는 점을 잊지 마세요.",
       "keyPoints": [
         "`trpl::channel()`의 수신자는 `mut`이어야 하고 `rx.recv()`는 퓨처라 await가 필요하다.",
         "채널이 무제한이라 `send`는 블로킹하지 않으며 await하지 않는다.",
@@ -264,12 +266,12 @@
             "hi만 출력된 뒤 프로그램이 끝나지 않는다"
           ],
           "answer": 3,
-          "explain": "`tx`가 바깥 블록에 살아 있어 채널이 닫히지 않으므로 두 번째 `recv().await`가 영원히 대기한다. `tx`를 드롭하거나 `async move`로 옮겨야 한다."
+          "explain": "`tx`가 같은 async 블록 안에 계속 살아 있어 채널이 닫히지 않으므로, 첫 메시지를 받은 뒤의 `recv().await`가 영원히 대기한다. `drop(tx)`를 하거나 송신을 `async move` 블록으로 분리해야 끝난다."
         },
         {
           "type": "fill",
           "q": "프로그램이 정상 종료되도록 빈칸을 채우세요.",
-          "code": "let (tx, mut rx) = trpl::channel();\n\nlet tx_fut = async ___ {\n    tx.send(String::from(\"bye\")).unwrap();\n};\n\nlet rx_fut = async {\n    while let Some(v) = rx.recv().await {\n        println!(\"{v}\");\n    }\n};\n\ntrpl::join(tx_fut, rx_fut).await;",
+          "code": "trpl::block_on(async {\n    let (tx, mut rx) = trpl::channel();\n\n    let tx_fut = async ___ {\n        tx.send(String::from(\"bye\")).unwrap();\n    };\n\n    let rx_fut = async {\n        while let Some(v) = rx.recv().await {\n            println!(\"{v}\");\n        }\n    };\n\n    trpl::join(tx_fut, rx_fut).await;\n});",
           "options": [
             "move",
             "mut",
@@ -299,9 +301,10 @@
             "let tx1 = tx.clone();",
             "let tx1_fut = async move { tx1.send(1).unwrap(); };",
             "let tx_fut = async move { tx.send(2).unwrap(); };",
+            "let rx_fut = async { while let Some(v) = rx.recv().await { println!(\"{v}\"); } };",
             "trpl::join!(tx1_fut, tx_fut, rx_fut);"
           ],
-          "explain": "송신자를 복제한 뒤 각각을 `async move` 블록으로 옮기고, 퓨처가 셋이므로 `join!` 매크로로 한 번에 기다린다."
+          "explain": "송신자를 복제해 각각을 `async move` 블록으로 옮기고, 수신 블록까지 만든 뒤 퓨처가 셋이므로 `join!` 매크로로 한 번에 기다린다. 두 송신 블록이 모두 `move`여야 채널이 닫혀 `while let`이 끝난다."
         },
         {
           "type": "match",
@@ -331,7 +334,7 @@
     {
       "id": "ch17-4",
       "title": "여러 퓨처 다루기와 제어권 양보",
-      "summary": "퓨처 개수를 실행 시점에야 알 수 있다면 `join!` 매크로 대신 컬렉션과 `trpl::join_all`이 필요합니다. 그런데 서로 다른 async 블록은 **각각 다른 익명 타입**입니다. 출력 타입이 똑같이 `()`여도 컴파일러가 만든 별개의 타입이라 한 `Vec`에 그냥 담을 수 없습니다. 그래서 트레이트 객체로 만들어야 합니다.\n\n```rust\n// 이대로는 컴파일되지 않는다\nlet futures: Vec<Box<dyn Future<Output = ()>>> =\n    vec![Box::new(fut_a), Box::new(fut_b)];\ntrpl::join_all(futures).await;\n```\n\n에러 메시지는 ``dyn Future<Output = ()>` cannot be unpinned``, 즉 `Unpin`이 구현되지 않았다고 말합니다. `join_all`은 넘겨받은 항목들이 `Future`이길 요구하는데, `Box<T>`가 `Future`가 되려면 안쪽 `T`가 `Unpin`이어야 하기 때문입니다. 퓨처를 직접 `.await` 할 때는 컴파일러가 알아서 고정(pin)해 주지만, 컬렉션에 담아 넘길 때는 우리가 직접 고정해야 합니다. 해법은 `Box::pin`이나 `std::pin::pin!` 매크로입니다.\n\n```rust\nuse std::future::Future;\nuse std::pin::Pin;\n\nlet futures: Vec<Pin<Box<dyn Future<Output = ()>>>> =\n    vec![Box::pin(fut_a), Box::pin(fut_b)];\ntrpl::join_all(futures).await;\n```\n\n`Box::pin`은 힙에 할당하는 대신 어디든 들고 다닐 수 있고, `pin!` 매크로는 스택에 고정해 할당을 피하는 대신 그 스코프 안에서만 쓸 수 있습니다(`Vec<Pin<&mut dyn Future<Output = ()>>>` 형태).\n\n이제 다른 축의 문제를 봅시다. 런타임은 **await 지점에서만** 제어권을 넘겨받습니다. await 사이의 코드는 전부 동기 코드라서, 계산이 오래 걸리는 작업을 await 없이 돌리면 그 퓨처가 다른 퓨처들을 **굶깁니다(starvation)**. 이럴 때는 중간중간 제어권을 반납해야 합니다.\n\n`trpl::sleep(Duration::from_millis(1)).await`로도 양보는 되지만, 우리는 쉬고 싶은 게 아니라 그저 순서를 넘기고 싶을 뿐입니다. 게다가 타이머는 해상도 한계가 있어 1나노초를 요청해도 최소 1밀리초를 자기도 합니다. 의도를 정확히 표현하면서 훨씬 빠른 방법이 `trpl::yield_now().await`입니다.\n\n```rust\nlet task = async {\n    for chunk in chunks {\n        process(chunk);                 // 동기 계산\n        trpl::yield_now().await;        // 런타임에 차례를 넘김\n    }\n};\n```\n\n이것이 **협력적 멀티태스킹**입니다. 각 퓨처가 스스로 양보 시점을 정하는 대신, 너무 오래 붙들지 않을 책임도 함께 집니다. 물론 양보도 공짜는 아니므로 한 줄마다 끼워 넣을 필요는 없고, 실제 병목을 측정해서 결정해야 합니다.\n\n마지막으로 퓨처를 조합해 새 추상화를 만들어 봅시다. `select`와 `sleep`만 있으면 타임아웃을 직접 만들 수 있습니다.\n\n```rust\nuse trpl::Either;\n\nasync fn timeout<F: Future>(\n    future_to_try: F,\n    max_time: Duration,\n) -> Result<F::Output, Duration> {\n    match trpl::select(future_to_try, trpl::sleep(max_time)).await {\n        Either::Left(output) => Ok(output),\n        Either::Right(_) => Err(max_time),\n    }\n}\n```\n\n`select`가 인수 순서대로 폴링한다는 성질 덕분에, 작업 퓨처를 **첫 번째 인수로** 넘기면 제한 시간이 아주 짧아도 최소 한 번은 완료될 기회를 얻습니다. 이렇게 만든 `timeout`은 다시 재시도 로직 같은 더 큰 추상화의 재료가 됩니다.",
+      "summary": "퓨처 개수를 실행 시점에야 알 수 있다면 `join!` 매크로 대신 컬렉션과 `trpl::join_all`이 필요합니다. 그런데 서로 다른 async 블록은 **각각 다른 익명 타입**입니다. 출력 타입이 똑같이 `()`여도 컴파일러가 만든 별개의 타입이라 한 `Vec`에 그냥 담을 수 없습니다. 그래서 트레이트 객체로 만들어야 합니다.\n\n```rust\nuse std::future::Future;\n\nfn main() {\n    trpl::block_on(async {\n        let fut_a = async { println!(\"a\"); };\n        let fut_b = async { println!(\"b\"); };\n\n        // ❌ 컴파일 에러: `dyn Future<Output = ()> cannot be unpinned`\n        //    Box<T>는 T가 Unpin일 때만 Future를 구현한다\n        let futures: Vec<Box<dyn Future<Output = ()>>> =\n            vec![Box::new(fut_a), Box::new(fut_b)];\n        trpl::join_all(futures).await;\n    });\n}\n```\n\n에러 메시지는 ``dyn Future<Output = ()>` cannot be unpinned``, 즉 `Unpin`이 구현되지 않았다고 말합니다. `join_all`은 넘겨받은 항목들이 `Future`이길 요구하는데, `Box<T>`가 `Future`가 되려면 안쪽 `T`가 `Unpin`이어야 하기 때문입니다. 퓨처를 직접 `.await` 할 때는 컴파일러가 알아서 고정(pin)해 주지만, 컬렉션에 담아 넘길 때는 우리가 직접 고정해야 합니다. 해법은 `Box::pin`이나 `std::pin::pin!` 매크로입니다.\n\n```rust\nuse std::future::Future;\nuse std::pin::Pin;\n\nfn main() {\n    trpl::block_on(async {\n        let fut_a = async { println!(\"a\"); };\n        let fut_b = async { println!(\"b\"); };\n\n        let futures: Vec<Pin<Box<dyn Future<Output = ()>>>> =\n            vec![Box::pin(fut_a), Box::pin(fut_b)];\n        trpl::join_all(futures).await;\n    });\n}\n```\n\n`Box::pin`은 힙에 할당하는 대신 어디든 들고 다닐 수 있고, `pin!` 매크로는 스택에 고정해 할당을 피하는 대신 그 스코프 안에서만 쓸 수 있습니다(`Vec<Pin<&mut dyn Future<Output = ()>>>` 형태).\n\n이제 다른 축의 문제를 봅시다. 런타임은 **await 지점에서만** 제어권을 넘겨받습니다. await 사이의 코드는 전부 동기 코드라서, 계산이 오래 걸리는 작업을 await 없이 돌리면 그 퓨처가 다른 퓨처들을 **굶깁니다(starvation)**. 이럴 때는 중간중간 제어권을 반납해야 합니다.\n\n`trpl::sleep(Duration::from_millis(1)).await`로도 양보는 되지만, 우리는 쉬고 싶은 게 아니라 그저 순서를 넘기고 싶을 뿐입니다. 게다가 타이머는 해상도 한계가 있어 1나노초를 요청해도 최소 1밀리초를 자기도 합니다. 의도를 정확히 표현하면서 훨씬 빠른 방법이 `trpl::yield_now().await`입니다.\n\n```rust\nfn process(chunk: u32) {\n    println!(\"처리 {chunk}\");\n}\n\nfn main() {\n    trpl::block_on(async {\n        let task = async {\n            for chunk in [1, 2, 3] {\n                process(chunk);                 // 동기 계산\n                trpl::yield_now().await;        // 런타임에 차례를 넘김\n            }\n        };\n        task.await;\n    });\n}\n```\n\n이것이 **협력적 멀티태스킹**입니다. 각 퓨처가 스스로 양보 시점을 정하는 대신, 너무 오래 붙들지 않을 책임도 함께 집니다. 물론 양보도 공짜는 아니므로 한 줄마다 끼워 넣을 필요는 없고, 실제 병목을 측정해서 결정해야 합니다.\n\n마지막으로 퓨처를 조합해 새 추상화를 만들어 봅시다. `select`와 `sleep`만 있으면 타임아웃을 직접 만들 수 있습니다.\n\n```rust\nuse std::future::Future;\nuse std::time::Duration;\nuse trpl::Either;\n\nasync fn timeout<F: Future>(\n    future_to_try: F,\n    max_time: Duration,\n) -> Result<F::Output, Duration> {\n    match trpl::select(future_to_try, trpl::sleep(max_time)).await {\n        Either::Left(output) => Ok(output),\n        Either::Right(_) => Err(max_time),\n    }\n}\n\nfn main() {\n    trpl::block_on(async {\n        let slow = async {\n            trpl::sleep(Duration::from_millis(200)).await;\n            \"느린 값\"\n        };\n        match timeout(slow, Duration::from_millis(50)).await {\n            Ok(v) => println!(\"성공: {v}\"),\n            Err(d) => println!(\"{}ms 안에 못 끝남\", d.as_millis()),\n        }\n    });\n}\n```\n\n`select`가 인수 순서대로 폴링한다는 성질 덕분에, 작업 퓨처를 **첫 번째 인수로** 넘기면 제한 시간이 아주 짧아도 최소 한 번은 완료될 기회를 얻습니다. 이렇게 만든 `timeout`은 다시 재시도 로직 같은 더 큰 추상화의 재료가 됩니다.",
       "keyPoints": [
         "서로 다른 async 블록은 서로 다른 익명 타입이라 컬렉션에 담으려면 트레이트 객체가 필요하다.",
         "`join_all`에 넘기려면 `Box::pin`이나 `pin!`으로 퓨처를 고정해야 한다.",
@@ -355,7 +358,7 @@
         {
           "type": "fill",
           "q": "`join_all`이 받을 수 있도록 빈칸을 채우세요.",
-          "code": "let futures: Vec<Pin<Box<dyn Future<Output = ()>>>> =\n    vec![___(fut_a), Box::pin(fut_b)];\n\ntrpl::join_all(futures).await;",
+          "code": "use std::future::Future;\nuse std::pin::Pin;\n\ntrpl::block_on(async {\n    let fut_a = async { println!(\"a\"); };\n    let fut_b = async { println!(\"b\"); };\n\n    let futures: Vec<Pin<Box<dyn Future<Output = ()>>>> =\n        vec![___(fut_a), Box::pin(fut_b)];\n\n    trpl::join_all(futures).await;\n});",
           "options": [
             "Box::pin",
             "Box::new",
@@ -373,8 +376,8 @@
         },
         {
           "type": "output",
-          "q": "`slow`가 동기적으로 블로킹한다고 할 때, 이 두 퓨처의 출력 순서로 옳은 것은?",
-          "code": "let a = async {\n    slow(\"a\", 30);\n    trpl::yield_now().await;\n    slow(\"a\", 10);\n};\nlet b = async {\n    slow(\"b\", 20);\n    trpl::yield_now().await;\n    slow(\"b\", 15);\n};\ntrpl::join(a, b).await;",
+          "q": "`slow`는 스레드를 실제로 블로킹한다. 이 두 퓨처의 출력 순서로 옳은 것은?",
+          "code": "fn slow(name: &str, ms: u64) {\n    std::thread::sleep(std::time::Duration::from_millis(ms));\n    println!(\"{name} {ms}\");\n}\n\ntrpl::block_on(async {\n    let a = async {\n        slow(\"a\", 30);\n        trpl::yield_now().await;\n        slow(\"a\", 10);\n    };\n    let b = async {\n        slow(\"b\", 20);\n        trpl::yield_now().await;\n        slow(\"b\", 15);\n    };\n    trpl::join(a, b).await;\n});",
           "options": [
             "a 30 → a 10 → b 20 → b 15",
             "b 20 → b 15 → a 30 → a 10",
@@ -404,7 +407,8 @@
             "    match trpl::select(future_to_try, trpl::sleep(max_time)).await {",
             "        Either::Left(output) => Ok(output),",
             "        Either::Right(_) => Err(max_time),",
-            "    }"
+            "    }",
+            "}"
           ],
           "explain": "작업 퓨처를 첫 인수로 넘겨야 `select`의 폴링 순서 덕분에 제한 시간이 짧아도 완료 기회를 갖는다. 왼쪽이 이기면 성공, 오른쪽(타이머)이 이기면 실패다."
         },
@@ -442,13 +446,14 @@
     {
       "id": "ch17-5",
       "title": "스트림: 시간에 따라 흐르는 값들",
-      "summary": "채널 수신자는 시간이 흐르면서 값을 하나씩 내놓았습니다. 이 패턴을 일반화한 것이 **스트림(stream)** 입니다. 큐에 쌓이는 이벤트, 파일에서 조금씩 읽어오는 데이터 조각, 네트워크로 도착하는 패킷 모두 스트림으로 표현할 수 있습니다.\n\n스트림은 **비동기 이터레이터**라고 생각하면 쉽습니다. 이터레이터는 동기적으로 `next`를 호출해 `Option<Item>`을 받지만, 스트림은 `next`가 퓨처를 돌려주므로 await해야 합니다. 그래서 이터레이터가 있으면 스트림으로 바꿀 수도 있습니다.\n\n```rust\nuse trpl::StreamExt;\n\nlet values = [1, 2, 3, 4, 5];\nlet mut stream = trpl::stream_from_iter(values.into_iter());\n\nwhile let Some(v) = stream.next().await {\n    println!(\"{v}\");\n}\n```\n\n여기서 `use trpl::StreamExt;`를 빼먹으면 \"`next` 메서드가 없다\"는 `E0599` 에러가 납니다. 기반이 되는 `Stream` 트레이트는 저수준 인터페이스만 정의하고, `next`·`map`·`filter`·`take` 같은 편의 메서드는 확장 트레이트인 **`StreamExt`** 가 제공하기 때문입니다. `Ext`는 extension의 약자로, 기본 트레이트를 건드리지 않고 편의 API를 얹는 Rust 커뮤니티의 흔한 관례입니다. `StreamExt`는 `Stream`을 구현한 모든 타입에 자동으로 구현됩니다.\n\n```rust\nlet mut evens = trpl::stream_from_iter(1..=10)\n    .filter(|n| n % 2 == 0)\n    .take(3);\n```\n\n진짜 비동기 스트림은 채널에서 만듭니다. `trpl::ReceiverStream`으로 수신자를 감싸면 일반 스트림처럼 다룰 수 있고, 함수는 `impl Stream<Item = T>`를 반환하면 됩니다.\n\n```rust\nuse trpl::{ReceiverStream, Stream};\n\nfn tick_messages() -> impl Stream<Item = String> {\n    let (tx, rx) = trpl::channel();\n\n    trpl::spawn_task(async move {\n        for i in 1..=5 {\n            trpl::sleep(Duration::from_millis(100)).await;\n            tx.send(format!(\"틱 {i}\")).unwrap();\n        }\n    });\n\n    ReceiverStream::new(rx)\n}\n```\n\n`StreamExt`에는 시간과 관련된 유용한 조합기도 있습니다. **`throttle`** 은 스트림이 폴링되는 속도를 제한해서, 값이 아무리 빨리 쏟아져도 정해진 간격보다 자주 소비되지 않게 합니다. UI 이벤트처럼 과도하게 많이 발생하는 값을 솎아낼 때 유용합니다. **`merge`** 는 두 스트림을 하나로 합쳐, 어느 쪽에서든 먼저 준비된 값을 내보냅니다. 단, 합치려면 두 스트림의 `Item` 타입이 같아야 하므로 보통 `map`으로 타입을 맞춰 줍니다.\n\n```rust\nlet messages = tick_messages();\nlet intervals = tick_counter().map(|n| format!(\"카운트 {n}\"));\n\nlet mut merged = messages\n    .merge(intervals)\n    .throttle(Duration::from_millis(100))\n    .take(20);\n```\n\n스트림도 결국 퓨처이므로 앞서 만든 `timeout` 같은 도구와도 자유롭게 조합할 수 있습니다. 항목 하나하나에 제한 시간을 걸어 느린 항목에서 에러를 내거나, 여러 소스를 합쳐 한 루프에서 처리하는 식의 패턴이 자연스럽게 만들어집니다.",
+      "summary": "채널 수신자는 시간이 흐르면서 값을 하나씩 내놓았습니다. 이 패턴을 일반화한 것이 **스트림(stream)** 입니다. 큐에 쌓이는 이벤트, 파일에서 조금씩 읽어오는 데이터 조각, 네트워크로 도착하는 패킷 모두 스트림으로 표현할 수 있습니다.\n\n스트림은 **비동기 이터레이터**라고 생각하면 쉽습니다. 이터레이터는 동기적으로 `next`를 호출해 `Option<Item>`을 받지만, 스트림은 `next`가 퓨처를 돌려주므로 await해야 합니다. 그래서 이터레이터가 있으면 스트림으로 바꿀 수도 있습니다.\n\n```rust\nuse trpl::StreamExt;\n\nfn main() {\n    trpl::block_on(async {\n        let values = [1, 2, 3, 4, 5];\n        let mut stream = trpl::stream_from_iter(values.into_iter());\n\n        while let Some(v) = stream.next().await {\n            println!(\"{v}\");\n        }\n    });\n}\n```\n\n여기서 `use trpl::StreamExt;`를 빼먹으면 \"`next` 메서드가 없다\"는 `E0599` 에러가 납니다. 기반이 되는 `Stream` 트레이트는 저수준 인터페이스만 정의하고, `next`·`map`·`filter`·`take` 같은 편의 메서드는 확장 트레이트인 **`StreamExt`** 가 제공하기 때문입니다. `Ext`는 extension의 약자로, 기본 트레이트를 건드리지 않고 편의 API를 얹는 Rust 커뮤니티의 흔한 관례입니다. `StreamExt`는 `Stream`을 구현한 모든 타입에 자동으로 구현됩니다.\n\n```rust\nuse trpl::StreamExt;\n\nfn main() {\n    trpl::block_on(async {\n        let mut evens = trpl::stream_from_iter(1..=10)\n            .filter(|n| n % 2 == 0)\n            .take(3);\n\n        while let Some(v) = evens.next().await {\n            println!(\"{v}\");   // 2, 4, 6\n        }\n    });\n}\n```\n\n진짜 비동기 스트림은 채널에서 만듭니다. `trpl::ReceiverStream`으로 수신자를 감싸면 일반 스트림처럼 다룰 수 있고, 함수는 `impl Stream<Item = T>`를 반환하면 됩니다.\n\n```rust\nuse std::time::Duration;\nuse trpl::{ReceiverStream, Stream, StreamExt};\n\nfn tick_messages() -> impl Stream<Item = String> {\n    let (tx, rx) = trpl::channel();\n\n    trpl::spawn_task(async move {\n        for i in 1..=5 {\n            trpl::sleep(Duration::from_millis(100)).await;\n            tx.send(format!(\"틱 {i}\")).unwrap();\n        }\n    });\n\n    ReceiverStream::new(rx)\n}\n\nfn main() {\n    trpl::block_on(async {\n        let mut messages = tick_messages();\n        while let Some(m) = messages.next().await {\n            println!(\"{m}\");\n        }\n    });\n}\n```\n\n`StreamExt`에는 시간과 관련된 유용한 조합기도 있습니다. **`throttle`** 은 스트림이 폴링되는 속도를 제한해서, 값이 아무리 빨리 쏟아져도 정해진 간격보다 자주 소비되지 않게 합니다. UI 이벤트처럼 과도하게 많이 발생하는 값을 솎아낼 때 유용합니다. **`merge`** 는 두 스트림을 하나로 합쳐, 어느 쪽에서든 먼저 준비된 값을 내보냅니다. 단, 합치려면 두 스트림의 `Item` 타입이 같아야 하므로 보통 `map`으로 타입을 맞춰 줍니다.\n\n```rust\nuse std::pin::pin;\nuse std::time::Duration;\nuse trpl::{Stream, StreamExt};\n\nfn tick_counter() -> impl Stream<Item = u32> {\n    trpl::stream_from_iter(1..=3)\n}\n\nfn main() {\n    trpl::block_on(async {\n        let messages = trpl::stream_from_iter([\"가\", \"나\", \"다\"])\n            .map(|s| s.to_string());\n        let intervals = tick_counter().map(|n| format!(\"카운트 {n}\"));\n\n        // throttle이 씌운 스트림은 !Unpin이라 next()를 쓰려면 pin!이 필요하다\n        let mut merged = pin!(messages\n            .merge(intervals)\n            .throttle(Duration::from_millis(100))\n            .take(6));\n\n        while let Some(v) = merged.next().await {\n            println!(\"{v}\");\n        }\n    });\n}\n```\n\n여기서 한 가지 실전 함정이 있습니다. `throttle`처럼 조합기가 씌운 스트림은 자기 참조를 가질 수 있어 `Unpin`이 아닌데, `StreamExt::next`는 `Self: Unpin`을 요구합니다. 그래서 조합기를 여러 개 엮은 스트림은 `std::pin::pin!`으로 고정한 뒤에야 `while let`으로 돌릴 수 있습니다(다음 레슨의 `Pin` 이야기와 정확히 같은 이유입니다).\n\n스트림도 결국 퓨처이므로 앞서 만든 `timeout` 같은 도구와도 자유롭게 조합할 수 있습니다. 항목 하나하나에 제한 시간을 걸어 느린 항목에서 에러를 내거나, 여러 소스를 합쳐 한 루프에서 처리하는 식의 패턴이 자연스럽게 만들어집니다.",
       "keyPoints": [
         "스트림은 비동기 이터레이터로, `next()`가 퓨처를 돌려주므로 await해야 한다.",
         "`next`, `filter`, `map`, `take` 등을 쓰려면 `use trpl::StreamExt;`가 필요하다.",
         "`trpl::stream_from_iter`로 이터레이터를, `ReceiverStream`으로 채널 수신자를 스트림으로 바꾼다.",
         "`throttle`은 폴링 속도를 제한해 값이 너무 자주 소비되는 것을 막는다.",
-        "`merge`는 두 스트림을 합치며 `Item` 타입이 같아야 한다."
+        "`merge`는 두 스트림을 합치며 `Item` 타입이 같아야 한다.",
+        "조합기를 엮은 스트림은 `!Unpin`이라 `next()`를 쓰려면 `std::pin::pin!`으로 고정해야 한다."
       ],
       "exercises": [
         {
@@ -466,7 +471,7 @@
         {
           "type": "fill",
           "q": "이터레이터를 스트림으로 바꾸도록 빈칸을 채우세요.",
-          "code": "use trpl::StreamExt;\n\nlet iter = (1..=5).map(|n| n * 2);\nlet mut stream = ___(iter);\n\nwhile let Some(v) = stream.next().await {\n    println!(\"{v}\");\n}",
+          "code": "use trpl::StreamExt;\n\ntrpl::block_on(async {\n    let iter = (1..=5).map(|n| n * 2);\n    let mut stream = ___(iter);\n\n    while let Some(v) = stream.next().await {\n        println!(\"{v}\");\n    }\n});",
           "options": [
             "iter.into_stream()",
             "Stream::from",
@@ -479,11 +484,11 @@
         {
           "type": "output",
           "q": "이 코드의 출력은?",
-          "code": "use trpl::StreamExt;\n\nlet values = [1, 2, 3, 4, 5, 6];\nlet iter = values.iter().map(|n| n * 10);\nlet mut stream = trpl::stream_from_iter(iter)\n    .filter(|n| n % 20 == 0);\n\nwhile let Some(v) = stream.next().await {\n    println!(\"{v}\");\n}",
+          "code": "use trpl::StreamExt;\n\ntrpl::block_on(async {\n    let values = [1, 2, 3, 4, 5, 6];\n    let iter = values.iter().map(|n| n * 10);\n    let mut stream = trpl::stream_from_iter(iter)\n        .filter(|n| n % 20 == 0);\n\n    while let Some(v) = stream.next().await {\n        println!(\"{v}\");\n    }\n});",
           "options": [
-            "10\\n20\\n30\\n40\\n50\\n60",
-            "20\\n40\\n60",
-            "2\\n4\\n6",
+            "10\n20\n30\n40\n50\n60",
+            "20\n40\n60",
+            "2\n4\n6",
             "컴파일 에러"
           ],
           "answer": 1,
@@ -547,7 +552,7 @@
     {
       "id": "ch17-6",
       "title": "Future·Pin·Stream 트레이트 들여다보기",
-      "summary": "이제 그동안 써 온 문법 뒤에 무엇이 있는지 확인할 차례입니다. `Future` 트레이트의 정의는 다음과 같습니다.\n\n```rust\nuse std::pin::Pin;\nuse std::task::{Context, Poll};\n\npub trait Future {\n    type Output;\n\n    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>;\n}\n```\n\n연관 타입 `Output`은 퓨처가 최종적으로 내놓을 값의 타입으로, 이터레이터의 `Item`에 대응합니다. `poll`이 돌려주는 `Poll`은 `Option`과 모양은 비슷하지만 의미가 다릅니다.\n\n```rust\npub enum Poll<T> {\n    Ready(T),\n    Pending,\n}\n```\n\n`Pending`은 \"아직 할 일이 남았으니 나중에 다시 물어봐\"라는 뜻이고, `Ready(T)`는 \"끝났고 값은 이거야\"라는 뜻입니다. `.await`는 결국 이 `poll` 호출로 컴파일됩니다. 다만 단순한 반복문으로 계속 폴링하면 블로킹이 되어 버리므로, 런타임이 중간에 끼어들어 `Pending`을 받은 퓨처를 재워 두었다가 다른 퓨처를 진행시킵니다. `cx`로 넘어오는 `Context`가 바로 \"준비되면 다시 깨워 달라\"고 알릴 통로(waker)를 담고 있습니다. 참고로 `Ready`를 반환한 퓨처를 다시 폴링하면 많은 구현이 패닉하므로, 직접 `poll`을 호출할 일이 있다면 주의해야 합니다.\n\n다음은 `self: Pin<&mut Self>`라는 낯선 부분입니다. 왜 그냥 `&mut self`가 아닐까요? async 블록은 상태 머신으로 컴파일되는데, 이 상태 머신은 **자기 자신을 가리키는 참조를 가질 수 있습니다.** 예를 들어 `let s = String::from(\"hi\"); let r = &s; other(r).await;` 같은 코드는 await 지점을 넘어 살아 있는 지역 변수와 그 변수에 대한 참조를 같은 구조체 안에 함께 담아야 합니다.\n\n자기 참조 구조체를 메모리상 다른 위치로 옮기면, 내부 참조는 여전히 옛 주소를 가리켜 댕글링 포인터가 됩니다. 그래서 \"이 값은 움직이지 않는다\"는 보장이 필요하고, 그 보장을 제공하는 것이 **`Pin`** 입니다. `Pin`은 `&`, `&mut`, `Box` 같은 포인터류 타입을 감싸는 래퍼일 뿐 그 자체가 포인터는 아니며, `Rc`처럼 런타임 동작을 하지도 않습니다. 순전히 컴파일러가 제약을 강제하도록 돕는 도구입니다. `Pin<Box<T>>`에서 고정되는 것은 `Box`가 아니라 **`Box`가 가리키는 `T`** 라는 점이 중요합니다. `Box` 자체는 자유롭게 옮겨도 됩니다.\n\n반대편에는 마커 트레이트 **`Unpin`** 이 있습니다. `Send`·`Sync`처럼 기능은 없고, \"이 타입은 옮겨도 안전하니 고정에 신경 쓸 필요 없다\"고 컴파일러에 알리는 역할만 합니다. 대부분의 타입은 `Unpin`을 자동으로 구현하며(정상적인 경우), 자기 참조를 가질 수 있는 async 블록의 퓨처처럼 특수한 타입만 `!Unpin`이 됩니다. 그래서 `join_all`에 퓨처 컬렉션을 넘기려 할 때 `Unpin` 관련 에러가 나고, `pin!`이나 `Box::pin`으로 해결하게 되는 것입니다.\n\n`Stream` 트레이트는 `Iterator`와 `Future`를 합친 모양입니다. 아직 표준 라이브러리에는 없고 생태계의 공통 정의를 씁니다.\n\n```rust\ntrait Stream {\n    type Item;\n\n    fn poll_next(\n        self: Pin<&mut Self>,\n        cx: &mut Context<'_>,\n    ) -> Poll<Option<Self::Item>>;\n}\n```\n\n바깥의 `Poll`은 준비 여부를(퓨처처럼), 안쪽의 `Option`은 항목이 더 있는지를(이터레이터처럼) 나타냅니다. 우리가 실제로 쓰는 `next`는 `StreamExt`가 `poll_next` 위에 얹어 주는 편의 메서드입니다.\n\n마지막으로 선택의 기준입니다. 스레드·태스크·퓨처는 서로 대체재가 아니라 알갱이 크기가 다른 계층입니다. 런타임(정확히는 executor)이 태스크를 관리하고, 태스크는 퓨처들을 관리하며, 퓨처는 가장 작은 동시성 단위입니다. 실전에서는 **CPU를 계속 쓰는 병렬화 가능한 작업이면 스레드**, **여러 곳에서 오는 I/O를 기다리는 동시적 작업이면 async**가 유리합니다. 둘을 섞는 것도 흔합니다. 예를 들어 영상 인코딩은 전용 스레드에서 돌리고, 완료 알림은 비동기 채널로 UI에 보내는 구조가 자연스럽습니다.",
+      "summary": "이제 그동안 써 온 문법 뒤에 무엇이 있는지 확인할 차례입니다. `Future` 트레이트의 정의는 다음과 같습니다.\n\n```rust\nuse std::pin::Pin;\nuse std::task::{Context, Poll};\n\npub trait Future {\n    type Output;\n\n    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>;\n}\n```\n\n연관 타입 `Output`은 퓨처가 최종적으로 내놓을 값의 타입으로, 이터레이터의 `Item`에 대응합니다. `poll`이 돌려주는 `Poll`은 `Option`과 모양은 비슷하지만 의미가 다릅니다.\n\n```rust\npub enum Poll<T> {\n    Ready(T),\n    Pending,\n}\n```\n\n`Pending`은 \"아직 할 일이 남았으니 나중에 다시 물어봐\"라는 뜻이고, `Ready(T)`는 \"끝났고 값은 이거야\"라는 뜻입니다. `.await`는 결국 이 `poll` 호출로 컴파일됩니다. 다만 단순한 반복문으로 계속 폴링하면 블로킹이 되어 버리므로, 런타임이 중간에 끼어들어 `Pending`을 받은 퓨처를 재워 두었다가 다른 퓨처를 진행시킵니다. `cx`로 넘어오는 `Context`가 바로 \"준비되면 다시 깨워 달라\"고 알릴 통로(waker)를 담고 있습니다. 참고로 `Ready`를 반환한 퓨처를 다시 폴링하면 많은 구현이 패닉하므로, 직접 `poll`을 호출할 일이 있다면 주의해야 합니다.\n\n다음은 `self: Pin<&mut Self>`라는 낯선 부분입니다. 왜 그냥 `&mut self`가 아닐까요? async 블록은 상태 머신으로 컴파일되는데, 이 상태 머신은 **자기 자신을 가리키는 참조를 가질 수 있습니다.** 예를 들어 `let s = String::from(\"hi\"); let r = &s; other(r).await;` 같은 코드는 await 지점을 넘어 살아 있는 지역 변수와 그 변수에 대한 참조를 같은 구조체 안에 함께 담아야 합니다.\n\n자기 참조 구조체를 메모리상 다른 위치로 옮기면, 내부 참조는 여전히 옛 주소를 가리켜 댕글링 포인터가 됩니다. 그래서 \"이 값은 움직이지 않는다\"는 보장이 필요하고, 그 보장을 제공하는 것이 **`Pin`** 입니다. `Pin`은 `&`, `&mut`, `Box` 같은 포인터류 타입을 감싸는 래퍼일 뿐 그 자체가 포인터는 아니며, `Rc`처럼 런타임 동작을 하지도 않습니다. 순전히 컴파일러가 제약을 강제하도록 돕는 도구입니다. `Pin<Box<T>>`에서 고정되는 것은 `Box`가 아니라 **`Box`가 가리키는 `T`** 라는 점이 중요합니다. `Box` 자체는 자유롭게 옮겨도 됩니다.\n\n반대편에는 마커 트레이트 **`Unpin`** 이 있습니다. `Send`·`Sync`처럼 기능은 없고, \"이 타입은 옮겨도 안전하니 고정에 신경 쓸 필요 없다\"고 컴파일러에 알리는 역할만 합니다. 대부분의 타입은 `Unpin`을 자동으로 구현하며(정상적인 경우), 자기 참조를 가질 수 있는 async 블록의 퓨처처럼 특수한 타입만 `!Unpin`이 됩니다. 그래서 `join_all`에 퓨처 컬렉션을 넘기려 할 때 `Unpin` 관련 에러가 나고, `pin!`이나 `Box::pin`으로 해결하게 되는 것입니다.\n\n`Stream` 트레이트는 `Iterator`와 `Future`를 합친 모양입니다. 2026년 현재 Rust 1.98에서도 여전히 표준 라이브러리에는 없고(나이틀리에 `AsyncIterator`라는 이름으로 실험 중입니다), 실무에서는 `futures` 크레이트의 정의를 생태계 공통 규격처럼 씁니다.\n\n```rust\nuse std::pin::Pin;\nuse std::task::{Context, Poll};\n\ntrait Stream {\n    type Item;\n\n    fn poll_next(\n        self: Pin<&mut Self>,\n        cx: &mut Context<'_>,\n    ) -> Poll<Option<Self::Item>>;\n}\n```\n\n바깥의 `Poll`은 준비 여부를(퓨처처럼), 안쪽의 `Option`은 항목이 더 있는지를(이터레이터처럼) 나타냅니다. 우리가 실제로 쓰는 `next`는 `StreamExt`가 `poll_next` 위에 얹어 주는 편의 메서드입니다.\n\n마지막으로 선택의 기준입니다. 스레드·태스크·퓨처는 서로 대체재가 아니라 알갱이 크기가 다른 계층입니다. 런타임(정확히는 executor)이 태스크를 관리하고, 태스크는 퓨처들을 관리하며, 퓨처는 가장 작은 동시성 단위입니다. 실전에서는 **CPU를 계속 쓰는 병렬화 가능한 작업이면 스레드**, **여러 곳에서 오는 I/O를 기다리는 동시적 작업이면 async**가 유리합니다. 둘을 섞는 것도 흔합니다. 예를 들어 영상 인코딩은 전용 스레드에서 돌리고, 완료 알림은 비동기 채널로 UI에 보내는 구조가 자연스럽습니다.",
       "keyPoints": [
         "`Future::poll`은 `Poll::Ready(T)` 또는 `Poll::Pending`을 반환하며 `.await`는 이 호출로 컴파일된다.",
         "`Context`는 퓨처가 준비됐을 때 런타임을 다시 깨울 waker를 전달한다.",
@@ -571,7 +576,7 @@
         {
           "type": "fill",
           "q": "아직 값이 준비되지 않았음을 알리는 반환값으로 빈칸을 채우세요.",
-          "code": "fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<u32> {\n    if self.done {\n        Poll::Ready(self.value)\n    } else {\n        cx.waker().wake_by_ref();\n        ___\n    }\n}",
+          "code": "use std::future::Future;\nuse std::pin::Pin;\nuse std::task::{Context, Poll};\n\nstruct Answer { done: bool, value: u32 }\n\nimpl Future for Answer {\n    type Output = u32;\n\n    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<u32> {\n        if self.done {\n            Poll::Ready(self.value)\n        } else {\n            cx.waker().wake_by_ref();\n            ___\n        }\n    }\n}",
           "options": [
             "Poll::None",
             "Option::None",
@@ -642,13 +647,14 @@
           "type": "order",
           "q": "`Stream` 트레이트 정의를 올바른 순서로 배열하세요.",
           "items": [
+            "use std::{pin::Pin, task::{Context, Poll}};",
             "trait Stream {",
             "    type Item;",
             "    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>)",
             "        -> Poll<Option<Self::Item>>;",
             "}"
           ],
-          "explain": "`Iterator`의 연관 타입 `Item`과 `Future`의 폴링 방식을 합친 구조다. 실제로 쓰는 `next`는 `StreamExt`가 이 위에 얹어 준다."
+          "explain": "`Iterator`의 연관 타입 `Item`과 `Future`의 폴링 방식을 합친 구조다. `Pin`·`Context`·`Poll`은 표준 라이브러리에서 가져와야 하며, 실제로 쓰는 `next`는 `StreamExt`가 이 위에 얹어 준다."
         },
         {
           "type": "mc",

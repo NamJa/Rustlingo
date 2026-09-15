@@ -10,7 +10,7 @@
     {
       "id": "ch13-1",
       "title": "클로저: 환경을 붙잡는 익명 함수",
-      "summary": "클로저는 **이름이 없는 함수**입니다. 변수에 담아 둘 수도 있고, 다른 함수의 인자로 넘길 수도 있습니다. 일반 함수 `fn`과 가장 크게 다른 점은, 클로저가 **자신이 정의된 자리의 변수들을 그대로 쓸 수 있다**는 것입니다. 정의는 여기서 하고 실행은 저 멀리 다른 맥락에서 하는 일이 가능해집니다.\n\n예를 들어 쿠폰 코드를 발급하는 상황을 생각해 봅시다. 사용자가 원하는 코드를 지정했으면 그걸 쓰고, 지정하지 않았으면 가게가 가진 기본 코드를 씁니다.\n\n```rust\nstruct Shop {\n    default_code: String,\n}\n\nimpl Shop {\n    fn issue(&self, wanted: Option<String>) -> String {\n        wanted.unwrap_or_else(|| self.default_code.clone())\n    }\n}\n\nfn main() {\n    let shop = Shop { default_code: String::from(\"WELCOME\") };\n    println!(\"{}\", shop.issue(Some(String::from(\"VIP\"))));\n    println!(\"{}\", shop.issue(None));\n}\n```\n\n여기서 `|| self.default_code.clone()` 부분이 클로저입니다. 두 개의 파이프 `||` 사이가 매개변수 자리인데 지금은 비어 있으니 인자를 받지 않는 클로저입니다. `Option<T>`의 `unwrap_or_else`는 값이 `Some`이면 그 안의 값을 그대로 돌려주고, `None`일 때만 넘겨받은 클로저를 호출합니다. 즉 위 코드에서 첫 번째 호출은 클로저를 아예 실행하지 않습니다.\n\n주목할 점은 표준 라이브러리가 `Shop`이라는 타입을 전혀 모른다는 것입니다. 클로저가 `self`에 대한 참조를 함께 들고 가기 때문에, 라이브러리는 \"필요하면 이걸 실행해라\"는 지시만 받아도 우리가 원하는 동작을 해냅니다. 일반 함수로는 이렇게 주변 값을 끌어안을 수 없습니다.\n\n또 하나의 차이는 **타입 표기**입니다. `fn`은 매개변수와 반환값 타입을 반드시 적어야 합니다. 함수 시그니처는 다른 사람에게 공개되는 약속이기 때문입니다. 반면 클로저는 보통 좁은 범위에서 잠깐 쓰이고 외부에 이름을 드러내지도 않으므로, 컴파일러가 사용처를 보고 타입을 추론합니다. 물론 명확성을 위해 직접 적어도 됩니다.\n\n```rust\nfn double_v1   (x: i32) -> i32 { x * 2 }\nlet double_v2 = |x: i32| -> i32 { x * 2 };\nlet double_v3 = |x|             { x * 2 };\nlet double_v4 = |x|               x * 2  ;\n```\n\n네 가지 모두 같은 동작을 합니다. 다만 `double_v3`, `double_v4`처럼 타입을 생략한 클로저는 **실제로 호출되는 곳이 있어야** 컴파일러가 타입을 정할 수 있습니다.\n\n여기서 흔히 걸려 넘어지는 규칙이 하나 있습니다. 컴파일러는 클로저마다 매개변수와 반환값에 대해 **딱 하나의 구체 타입**만 정합니다. 제네릭 함수가 아니라는 뜻입니다.\n\n```rust\nlet same = |x| x;\nlet a = same(String::from(\"hi\")); // 여기서 x는 String으로 확정\nlet b = same(7);                  // 에러: String을 기대했는데 정수\n```\n\n첫 호출에서 `String`으로 못이 박히기 때문에, 두 번째 호출은 타입 불일치 오류가 납니다.",
+      "summary": "클로저는 **이름이 없는 함수**입니다. 변수에 담아 둘 수도 있고, 다른 함수의 인자로 넘길 수도 있습니다. 일반 함수 `fn`과 가장 크게 다른 점은, 클로저가 **자신이 정의된 자리의 변수들을 그대로 쓸 수 있다**는 것입니다. 정의는 여기서 하고 실행은 저 멀리 다른 맥락에서 하는 일이 가능해집니다.\n\n예를 들어 쿠폰 코드를 발급하는 상황을 생각해 봅시다. 사용자가 원하는 코드를 지정했으면 그걸 쓰고, 지정하지 않았으면 가게가 가진 기본 코드를 씁니다.\n\n```rust\nstruct Shop {\n    default_code: String,\n}\n\nimpl Shop {\n    fn issue(&self, wanted: Option<String>) -> String {\n        wanted.unwrap_or_else(|| self.default_code.clone())\n    }\n}\n\nfn main() {\n    let shop = Shop { default_code: String::from(\"WELCOME\") };\n    println!(\"{}\", shop.issue(Some(String::from(\"VIP\"))));\n    println!(\"{}\", shop.issue(None));\n}\n```\n\n여기서 `|| self.default_code.clone()` 부분이 클로저입니다. 두 개의 파이프 `||` 사이가 매개변수 자리인데 지금은 비어 있으니 인자를 받지 않는 클로저입니다. `Option<T>`의 `unwrap_or_else`는 값이 `Some`이면 그 안의 값을 그대로 돌려주고, `None`일 때만 넘겨받은 클로저를 호출합니다. 즉 위 코드에서 첫 번째 호출은 클로저를 아예 실행하지 않습니다.\n\n주목할 점은 표준 라이브러리가 `Shop`이라는 타입을 전혀 모른다는 것입니다. 클로저가 `self`에 대한 참조를 함께 들고 가기 때문에, 라이브러리는 \"필요하면 이걸 실행해라\"는 지시만 받아도 우리가 원하는 동작을 해냅니다. 일반 함수로는 이렇게 주변 값을 끌어안을 수 없습니다.\n\n또 하나의 차이는 **타입 표기**입니다. `fn`은 매개변수와 반환값 타입을 반드시 적어야 합니다. 함수 시그니처는 다른 사람에게 공개되는 약속이기 때문입니다. 반면 클로저는 보통 좁은 범위에서 잠깐 쓰이고 외부에 이름을 드러내지도 않으므로, 컴파일러가 사용처를 보고 타입을 추론합니다. 물론 명확성을 위해 직접 적어도 됩니다.\n\n```rust\nfn double_v1   (x: i32) -> i32 { x * 2 }\nlet double_v2 = |x: i32| -> i32 { x * 2 };\nlet double_v3 = |x|             { x * 2 };\nlet double_v4 = |x|               x * 2  ;\n\n// v3, v4는 호출되는 곳이 있어야 컴파일러가 타입을 정할 수 있다\nprintln!(\"{} {} {} {}\", double_v1(5), double_v2(5), double_v3(5), double_v4(5));\n```\n\n네 가지 모두 같은 동작을 합니다. 다만 `double_v3`, `double_v4`처럼 타입을 생략한 클로저는 **실제로 호출되는 곳이 있어야** 컴파일러가 타입을 정할 수 있습니다.\n\n여기서 흔히 걸려 넘어지는 규칙이 하나 있습니다. 컴파일러는 클로저마다 매개변수와 반환값에 대해 **딱 하나의 구체 타입**만 정합니다. 제네릭 함수가 아니라는 뜻입니다.\n\n```rust\nlet same = |x| x;\nlet a = same(String::from(\"hi\")); // 여기서 x는 String으로 확정\nlet b = same(7);                  // ❌ 컴파일 에러(E0308): String을 기대했는데 정수\n```\n\n첫 호출에서 `String`으로 못이 박히기 때문에, 두 번째 호출은 타입 불일치 오류가 납니다.",
       "keyPoints": [
         "클로저는 익명 함수이며, 정의된 스코프의 변수를 붙잡아 나중에 사용할 수 있다.",
         "`unwrap_or_else`는 값이 `None`일 때만 클로저를 실행하므로, 비싼 계산을 미룰 수 있다.",
@@ -159,7 +159,7 @@
         {
           "type": "fill",
           "q": "새 스레드가 벡터를 안전하게 사용하도록 하려면 빈칸에 무엇이 필요할까요?",
-          "code": "let data = vec![1, 2, 3];\nthread::spawn(___ || println!(\"{data:?}\"))\n    .join()\n    .unwrap();",
+          "code": "use std::thread;\n\nlet data = vec![1, 2, 3];\nthread::spawn(___ || println!(\"{data:?}\"))\n    .join()\n    .unwrap();",
           "options": [
             "mut",
             "move",
@@ -359,7 +359,7 @@
     {
       "id": "ch13-4",
       "title": "minigrep 개선과 루프 vs 이터레이터",
-      "summary": "12장의 minigrep에는 찜찜한 부분이 남아 있었습니다. `Config::build`가 `&[String]` 슬라이스를 빌려 쓰기만 하다 보니, 소유권이 필요한 필드를 채우려고 `clone`을 호출해야 했습니다.\n\n```rust\n// 개선 전\nfn build(args: &[String]) -> Result<Config, &'static str> {\n    if args.len() < 3 {\n        return Err(\"인자가 부족합니다\");\n    }\n    let query = args[1].clone();\n    let file_path = args[2].clone();\n    // ...\n}\n```\n\n`env::args()`는 사실 벡터가 아니라 **이터레이터**를 반환합니다. 그러니 `collect()`로 굳이 벡터를 만들었다가 슬라이스를 빌려줄 이유가 없습니다. 이터레이터를 통째로 넘겨 소유권까지 함께 건네면 됩니다.\n\n```rust\nlet config = Config::build(env::args()).unwrap_or_else(|err| {\n    eprintln!(\"인자 파싱 실패: {err}\");\n    process::exit(1);\n});\n```\n\n받는 쪽 시그니처는 `impl Trait` 문법으로 바꿉니다. \"`Iterator`를 구현하고 `String`을 내놓는 아무 타입\"이라는 뜻이며, 순회하면서 상태가 바뀌므로 `mut`을 붙입니다.\n\n```rust\nfn build(\n    mut args: impl Iterator<Item = String>,\n) -> Result<Config, &'static str> {\n```\n\n이제 본문에서 인덱싱 대신 `next`를 씁니다. `env::args()`의 첫 값은 프로그램 이름이므로 한 번 버리고 시작합니다. 값이 없으면 `None`이 오니, 길이를 세는 코드 없이도 부족한 인자를 자연스럽게 걸러낼 수 있습니다.\n\n```rust\nargs.next(); // 프로그램 이름 버리기\n\nlet query = match args.next() {\n    Some(arg) => arg,\n    None => return Err(\"검색어가 없습니다\"),\n};\n```\n\n`next`가 돌려주는 `String`은 소유값이므로 그대로 `Config`에 넣을 수 있고, `clone` 호출과 그에 따른 메모리 할당이 사라집니다.\n\n검색 함수도 어댑터로 다듬을 수 있습니다. 원래는 빈 벡터를 만들고 루프를 돌며 `push`했지만, `filter`와 `collect` 조합이면 가변 중간 상태 없이 같은 일을 합니다. 가변 상태가 줄면 읽기도 쉽고, 나중에 병렬화 같은 변경도 수월해집니다.\n\n```rust\npub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {\n    contents\n        .lines()\n        .filter(|line| line.contains(query))\n        .collect()\n}\n```\n\n한 걸음 더 나가면 `collect`를 빼고 반환 타입을 `impl Iterator<Item = &'a str>`로 바꿔 함수 자체를 어댑터로 만들 수 있습니다. 그러면 모든 결과를 다 모은 뒤에 출력하는 대신, 일치하는 줄이 발견될 때마다 곧바로 출력됩니다. 게으름이 그대로 이득이 되는 경우입니다.\n\n그렇다면 손으로 쓴 `for` 루프와 이터레이터 중 무엇이 빠를까요? 직관적으로는 저수준 루프가 빠를 것 같지만, 큰 텍스트에서 단어를 찾는 벤치마크를 돌려 보면 두 방식의 시간은 거의 같습니다. 이터레이터는 러스트의 **무비용 추상화(zero-cost abstraction)** 중 하나여서, 추상화를 쓴다고 런타임 비용이 추가로 붙지 않습니다. 컴파일러는 루프 펼치기나 경계 검사 제거 같은 최적화를 적용해 직접 손으로 쓴 코드와 거의 같은 기계어를 만들어 냅니다. 따라서 성능 걱정 없이 읽기 좋은 쪽을 고르면 되고, 많은 러스트 개발자들이 이터레이터 스타일을 선호합니다.",
+      "summary": "12장의 minigrep에는 찜찜한 부분이 남아 있었습니다. `Config::build`가 `&[String]` 슬라이스를 빌려 쓰기만 하다 보니, 소유권이 필요한 필드를 채우려고 `clone`을 호출해야 했습니다.\n\n```rust\nstruct Config {\n    query: String,\n    file_path: String,\n}\n\n// 개선 전: 슬라이스를 빌려 쓰기만 하므로 소유권이 필요한 필드는 clone으로 채웠다\nfn build(args: &[String]) -> Result<Config, &'static str> {\n    if args.len() < 3 {\n        return Err(\"인자가 부족합니다\");\n    }\n    let query = args[1].clone();\n    let file_path = args[2].clone();\n    Ok(Config { query, file_path })\n}\n```\n\n`env::args()`는 사실 벡터가 아니라 **이터레이터**를 반환합니다. 그러니 `collect()`로 굳이 벡터를 만들었다가 슬라이스를 빌려줄 이유가 없습니다. 이터레이터를 통째로 넘겨 소유권까지 함께 건네면 됩니다.\n\n```text\nlet config = Config::build(env::args()).unwrap_or_else(|err| {\n    eprintln!(\"인자 파싱 실패: {err}\");\n    process::exit(1);\n});\n```\n\n받는 쪽 시그니처는 `impl Trait` 문법으로 바꿉니다. \"`Iterator`를 구현하고 `String`을 내놓는 아무 타입\"이라는 뜻이며, 순회하면서 상태가 바뀌므로 `mut`을 붙입니다.\n\n```text\nfn build(\n    mut args: impl Iterator<Item = String>,\n) -> Result<Config, &'static str> {\n```\n\n이제 본문에서 인덱싱 대신 `next`를 씁니다. `env::args()`의 첫 값은 프로그램 이름이므로 한 번 버리고 시작합니다. 값이 없으면 `None`이 오니, 길이를 세는 코드 없이도 부족한 인자를 자연스럽게 걸러낼 수 있습니다.\n\n```rust\nstruct Config {\n    query: String,\n    file_path: String,\n}\n\nimpl Config {\n    fn build(\n        mut args: impl Iterator<Item = String>,\n    ) -> Result<Config, &'static str> {\n        args.next(); // 프로그램 이름 버리기\n\n        let query = match args.next() {\n            Some(arg) => arg,\n            None => return Err(\"검색어가 없습니다\"),\n        };\n        let file_path = match args.next() {\n            Some(arg) => arg,\n            None => return Err(\"파일 경로가 없습니다\"),\n        };\n\n        Ok(Config { query, file_path })\n    }\n}\n\nfn main() {\n    // Playground에는 실제 명령행 인자가 없으므로 흉내 낸 이터레이터로 확인합니다.\n    let args = [\"minigrep\", \"rust\", \"poem.txt\"].map(String::from);\n    let config = Config::build(args.into_iter()).unwrap();\n    println!(\"{} / {}\", config.query, config.file_path); // rust / poem.txt\n}\n```\n\n`next`가 돌려주는 `String`은 소유값이므로 그대로 `Config`에 넣을 수 있고, `clone` 호출과 그에 따른 메모리 할당이 사라집니다.\n\n검색 함수도 어댑터로 다듬을 수 있습니다. 원래는 빈 벡터를 만들고 루프를 돌며 `push`했지만, `filter`와 `collect` 조합이면 가변 중간 상태 없이 같은 일을 합니다. 가변 상태가 줄면 읽기도 쉽고, 나중에 병렬화 같은 변경도 수월해집니다.\n\n```rust\npub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {\n    contents\n        .lines()\n        .filter(|line| line.contains(query))\n        .collect()\n}\n```\n\n한 걸음 더 나가면 `collect`를 빼고 반환 타입을 `impl Iterator<Item = &'a str>`로 바꿔 함수 자체를 어댑터로 만들 수 있습니다. 그러면 모든 결과를 다 모은 뒤에 출력하는 대신, 일치하는 줄이 발견될 때마다 곧바로 출력됩니다. 게으름이 그대로 이득이 되는 경우입니다.\n\n그렇다면 손으로 쓴 `for` 루프와 이터레이터 중 무엇이 빠를까요? 직관적으로는 저수준 루프가 빠를 것 같지만, 큰 텍스트에서 단어를 찾는 벤치마크를 돌려 보면 두 방식의 시간은 거의 같습니다. 이터레이터는 러스트의 **무비용 추상화(zero-cost abstraction)** 중 하나여서, 추상화를 쓴다고 런타임 비용이 추가로 붙지 않습니다. 컴파일러는 루프 펼치기나 경계 검사 제거 같은 최적화를 적용해 직접 손으로 쓴 코드와 거의 같은 기계어를 만들어 냅니다. 따라서 성능 걱정 없이 읽기 좋은 쪽을 고르면 되고, 많은 러스트 개발자들이 이터레이터 스타일을 선호합니다.",
       "keyPoints": [
         "`env::args()`는 벡터가 아니라 이터레이터를 반환하므로 그대로 넘겨 소유권을 건넬 수 있다.",
         "`impl Iterator<Item = String>` 매개변수로 바꾸면 인덱싱과 `clone` 없이 값을 옮겨 담을 수 있다.",
@@ -371,7 +371,7 @@
         {
           "type": "fill",
           "q": "이터레이터를 인자로 받도록 시그니처를 바꾸려면 빈칸에 무엇이 들어가야 할까요?",
-          "code": "fn build(\n    mut args: impl ___<Item = String>,\n) -> Result<Config, &'static str> {",
+          "code": "struct Config {\n    query: String,\n}\n\nfn build(\n    mut args: impl ___<Item = String>,\n) -> Result<Config, &'static str> {\n    args.next();\n    let query = args.next().ok_or(\"검색어가 없습니다\")?;\n    Ok(Config { query })\n}",
           "options": [
             "Iterator",
             "IntoIterator",
@@ -379,7 +379,7 @@
             "Vec"
           ],
           "answer": 0,
-          "explain": "`impl Iterator<Item = String>`은 `String`을 내놓는 `Iterator` 구현체라면 무엇이든 받겠다는 뜻입니다."
+          "explain": "`impl Iterator<Item = String>`은 `String`을 내놓는 `Iterator` 구현체라면 무엇이든 받겠다는 뜻입니다. `IntoIterator`로는 `next`를 바로 호출할 수 없습니다."
         },
         {
           "type": "tf",
@@ -401,16 +401,16 @@
         },
         {
           "type": "output",
-          "q": "`cargo run -- rust poem.txt`로 실행할 때, 아래 코드에서 `query`에 담기는 값은?",
-          "code": "let mut args = env::args();\nargs.next();\nlet query = match args.next() {\n    Some(arg) => arg,\n    None => return Err(\"검색어가 없습니다\"),\n};",
+          "q": "`cargo run -- rust poem.txt`의 인자 목록을 흉내 낸 코드입니다. 출력은?",
+          "code": "fn query_of(mut args: impl Iterator<Item = String>) -> Result<String, &'static str> {\n    args.next(); // 프로그램 이름 버리기\n    match args.next() {\n        Some(arg) => Ok(arg),\n        None => Err(\"검색어가 없습니다\"),\n    }\n}\n\nfn main() {\n    let args = [\"minigrep\", \"rust\", \"poem.txt\"].map(String::from);\n    println!(\"{:?}\", query_of(args.into_iter()));\n}",
           "options": [
-            "프로그램 실행 파일 경로",
-            "poem.txt",
-            "rust",
-            "None"
+            "Ok(\"minigrep\")",
+            "Ok(\"rust\")",
+            "Ok(\"poem.txt\")",
+            "Err(\"검색어가 없습니다\")"
           ],
-          "answer": 2,
-          "explain": "첫 `next()`가 프로그램 이름을 소비하고 버리므로, 두 번째 `next()`가 첫 번째 사용자 인자인 `rust`를 돌려줍니다."
+          "answer": 1,
+          "explain": "첫 `next()`가 프로그램 이름을 소비하고 버리므로, 두 번째 `next()`가 첫 사용자 인자인 `rust`를 돌려줍니다. 따라서 `Ok(\"rust\")`가 출력됩니다."
         },
         {
           "type": "order",

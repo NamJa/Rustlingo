@@ -10,7 +10,7 @@
     {
       "id": "ch06-1",
       "title": "열거형 정의하기",
-      "summary": "구조체가 \"이것과 저것을 함께 가진다\"를 표현한다면, 열거형(enum)은 \"이것 **아니면** 저것\"을 표현합니다. 가능한 후보를 모두 나열할 수 있는 상황에 딱 맞습니다.\n\n```rust\nenum Direction {\n    North,\n    South,\n    East,\n    West,\n}\n\nlet heading = Direction::North;\n```\n\n각 후보를 **배리언트(variant)**라고 부르고, 배리언트는 열거형 이름 아래 네임스페이스에 들어가므로 `Direction::North`처럼 `::`로 접근합니다. 중요한 점은 네 배리언트가 모두 **같은 타입 `Direction`**이라는 것입니다. 덕분에 `fn turn(d: Direction)`처럼 어떤 방향이든 받는 함수를 쓸 수 있습니다.\n\n배리언트에는 데이터를 직접 붙일 수 있습니다. 종류를 나타내는 열거형과 데이터를 구조체로 묶는 대신, 열거형 하나로 끝낼 수 있다는 뜻입니다.\n\n```rust\nenum Shape {\n    Circle(f64),\n    Rect(f64, f64),\n}\n\nlet c = Shape::Circle(2.0);\nlet r = Shape::Rect(3.0, 4.0);\n```\n\n`Shape::Circle`처럼 튜플 형태의 배리언트 이름은 값을 만들어 내는 생성자 함수처럼 동작합니다. 열거형을 정의하기만 하면 이 생성자를 공짜로 얻습니다.\n\n구조체로는 하기 어려운 일이 하나 더 있습니다. **배리언트마다 담는 데이터의 종류와 개수가 달라도 됩니다.**\n\n```rust\nenum Event {\n    Quit,                          // 데이터 없음\n    Resize { w: u32, h: u32 },     // 구조체처럼 이름 있는 필드\n    Type(char),                    // 값 하나\n    Move(i32, i32),                // 값 여러 개\n}\n```\n\n같은 내용을 구조체 네 개(`QuitEvent`, `ResizeEvent`, ...)로 나눠 정의할 수도 있지만, 그러면 타입이 네 개가 되어 \"아무 이벤트나 받는 함수\"를 만들기 어려워집니다. 열거형은 이 모두를 `Event`라는 **하나의 타입**으로 묶어 줍니다.\n\n구조체와 마찬가지로 열거형에도 `impl` 블록으로 메서드를 정의할 수 있습니다.\n\n```rust\nimpl Event {\n    fn is_quit(&self) -> bool {\n        matches!(self, Event::Quit)\n    }\n}\n\nlet e = Event::Type('a');\ne.is_quit(); // false\n```\n\n메서드 본문에서 `self`는 메서드를 호출한 그 열거형 값을 가리키며, 어떤 배리언트인지 구분하는 일은 곧 배울 `match`가 맡습니다.",
+      "summary": "구조체가 \"이것과 저것을 함께 가진다\"를 표현한다면, 열거형(enum)은 \"이것 **아니면** 저것\"을 표현합니다. 가능한 후보를 모두 나열할 수 있는 상황에 딱 맞습니다.\n\n```rust\nenum Direction {\n    North,\n    South,\n    East,\n    West,\n}\n\nlet heading = Direction::North;\n```\n\n각 후보를 **배리언트(variant)**라고 부르고, 배리언트는 열거형 이름 아래 네임스페이스에 들어가므로 `Direction::North`처럼 `::`로 접근합니다. 중요한 점은 네 배리언트가 모두 **같은 타입 `Direction`**이라는 것입니다. 덕분에 `fn turn(d: Direction)`처럼 어떤 방향이든 받는 함수를 쓸 수 있습니다.\n\n배리언트에는 데이터를 직접 붙일 수 있습니다. 종류를 나타내는 열거형과 데이터를 구조체로 묶는 대신, 열거형 하나로 끝낼 수 있다는 뜻입니다.\n\n```rust\nenum Shape {\n    Circle(f64),\n    Rect(f64, f64),\n}\n\nlet c = Shape::Circle(2.0);\nlet r = Shape::Rect(3.0, 4.0);\n```\n\n`Shape::Circle`처럼 튜플 형태의 배리언트 이름은 값을 만들어 내는 생성자 함수처럼 동작합니다. 열거형을 정의하기만 하면 이 생성자를 공짜로 얻습니다.\n\n구조체로는 하기 어려운 일이 하나 더 있습니다. **배리언트마다 담는 데이터의 종류와 개수가 달라도 됩니다.**\n\n```rust\nenum Event {\n    Quit,                          // 데이터 없음\n    Resize { w: u32, h: u32 },     // 구조체처럼 이름 있는 필드\n    Type(char),                    // 값 하나\n    Move(i32, i32),                // 값 여러 개\n}\n```\n\n같은 내용을 구조체 네 개(`QuitEvent`, `ResizeEvent`, ...)로 나눠 정의할 수도 있지만, 그러면 타입이 네 개가 되어 \"아무 이벤트나 받는 함수\"를 만들기 어려워집니다. 열거형은 이 모두를 `Event`라는 **하나의 타입**으로 묶어 줍니다.\n\n구조체와 마찬가지로 열거형에도 `impl` 블록으로 메서드를 정의할 수 있습니다.\n\n```rust\nenum Event {\n    Quit,\n    Resize { w: u32, h: u32 },\n    Type(char),\n    Move(i32, i32),\n}\n\nimpl Event {\n    fn is_quit(&self) -> bool {\n        matches!(self, Event::Quit)\n    }\n}\n\nlet e = Event::Type('a');\nprintln!(\"{}\", e.is_quit()); // false\n```\n\n메서드 본문에서 `self`는 메서드를 호출한 그 열거형 값을 가리키며, 어떤 배리언트인지 구분하는 일은 곧 배울 `match`가 맡습니다.",
       "keyPoints": [
         "열거형은 값이 여러 후보 중 정확히 하나임을 표현하며 각 후보를 배리언트라 부른다.",
         "배리언트는 `열거형이름::배리언트`처럼 네임스페이스 아래에 놓이고, 모두 같은 타입이다.",
@@ -68,6 +68,7 @@
           "type": "order",
           "q": "열거형에 메서드를 정의하는 코드를 올바른 순서로 배열하세요.",
           "items": [
+            "enum Light { Red, Green }",
             "impl Light {",
             "    fn go(&self) -> bool {",
             "        matches!(self, Light::Green)",
@@ -182,7 +183,7 @@
           "explain": "`Option<T>`는 `T`와 다른 타입이므로, 값을 꺼내는 과정에서 부재 경우를 처리하지 않으면 컴파일이 되지 않습니다."
         },
         {
-          "type": "output",
+          "type": "mc",
           "q": "`some_char`의 타입은 무엇인가요?",
           "code": "let some_char = Some('z');",
           "options": [
@@ -228,7 +229,7 @@
     {
       "id": "ch06-3",
       "title": "match로 흐름 제어하기",
-      "summary": "`match`는 값을 여러 패턴과 차례로 비교하고, 가장 먼저 들어맞는 갈래(arm)의 코드를 실행하는 제어 구조입니다. 동전 분류기를 떠올리면 좋습니다. 동전이 트랙을 따라 내려가다가 자기가 통과할 수 있는 첫 번째 구멍으로 떨어집니다.\n\n```rust\nenum Coin {\n    Penny,\n    Nickel,\n    Dime,\n    Quarter,\n}\n\nfn value_in_cents(coin: Coin) -> u8 {\n    match coin {\n        Coin::Penny => 1,\n        Coin::Nickel => 5,\n        Coin::Dime => 10,\n        Coin::Quarter => 25,\n    }\n}\n```\n\n`if`와 달리 `match`가 검사하는 값은 bool일 필요가 없습니다. 각 갈래는 `패턴 => 코드` 형태이고 쉼표로 구분합니다. 갈래의 코드는 **표현식**이므로 그 값이 곧 `match` 전체의 값이 됩니다. 여러 줄이 필요하면 중괄호로 묶으면 됩니다.\n\n패턴의 진짜 힘은 **값을 꺼내 바인딩**할 수 있다는 데서 나옵니다. 배리언트가 데이터를 담고 있다면 패턴에 변수 이름을 적어 그 안의 값을 받아 올 수 있습니다.\n\n```rust\nenum Shape {\n    Circle(f64),\n    Rect(f64, f64),\n}\n\nfn area(s: Shape) -> f64 {\n    match s {\n        Shape::Circle(r) => 3.14159 * r * r,\n        Shape::Rect(w, h) => w * h,\n    }\n}\n```\n\n`Option<T>`도 평범한 열거형이므로 똑같이 다룹니다. 이 조합이 러스트에서 가장 자주 보게 될 패턴입니다.\n\n```rust\nfn plus_one(x: Option<i32>) -> Option<i32> {\n    match x {\n        None => None,\n        Some(n) => Some(n + 1),\n    }\n}\n```\n\n`match`의 갈래는 **모든 경우를 빠짐없이 다루어야** 합니다. 위에서 `None` 갈래를 빼면 컴파일러가 \"`None`이 처리되지 않았다\"며 거절합니다. 이 완전성 검사 덕분에 \"값이 없을 수 있다는 걸 깜빡하는\" 실수가 원천 차단됩니다.\n\n모든 값을 일일이 나열할 수 없을 때는 마지막에 **포괄 패턴**을 둡니다. 남은 값을 실제로 쓰고 싶다면 변수 이름(`other` 등)으로 바인딩하고, 쓰지 않을 거라면 `_`를 씁니다. `_`는 값을 바인딩하지 않으므로 \"사용하지 않는 변수\" 경고도 나지 않습니다. 그리고 아무 일도 하지 않으려면 유닛 값 `()`를 적습니다.\n\n```rust\nlet roll = 9;\nmatch roll {\n    3 => give_hat(),\n    7 => take_hat(),\n    other => move_player(other), // 남은 값을 사용\n}\n\nmatch roll {\n    3 => give_hat(),\n    7 => take_hat(),\n    _ => reroll(),               // 남은 값을 쓰지 않음\n}\n\nmatch roll {\n    3 => give_hat(),\n    7 => take_hat(),\n    _ => (),                     // 아무 일도 하지 않음\n}\n```\n\n패턴은 위에서 아래로 순서대로 검사되므로 포괄 패턴은 **반드시 마지막**에 와야 합니다. 앞에 두면 뒤 갈래는 영영 실행되지 않고, 러스트가 이를 경고해 줍니다.",
+      "summary": "`match`는 값을 여러 패턴과 차례로 비교하고, 가장 먼저 들어맞는 갈래(arm)의 코드를 실행하는 제어 구조입니다. 동전 분류기를 떠올리면 좋습니다. 동전이 트랙을 따라 내려가다가 자기가 통과할 수 있는 첫 번째 구멍으로 떨어집니다.\n\n```rust\nenum Coin {\n    Penny,\n    Nickel,\n    Dime,\n    Quarter,\n}\n\nfn value_in_cents(coin: Coin) -> u8 {\n    match coin {\n        Coin::Penny => 1,\n        Coin::Nickel => 5,\n        Coin::Dime => 10,\n        Coin::Quarter => 25,\n    }\n}\n```\n\n`if`와 달리 `match`가 검사하는 값은 bool일 필요가 없습니다. 각 갈래는 `패턴 => 코드` 형태이고 쉼표로 구분합니다. 갈래의 코드는 **표현식**이므로 그 값이 곧 `match` 전체의 값이 됩니다. 여러 줄이 필요하면 중괄호로 묶으면 됩니다.\n\n패턴의 진짜 힘은 **값을 꺼내 바인딩**할 수 있다는 데서 나옵니다. 배리언트가 데이터를 담고 있다면 패턴에 변수 이름을 적어 그 안의 값을 받아 올 수 있습니다.\n\n```rust\nenum Shape {\n    Circle(f64),\n    Rect(f64, f64),\n}\n\nfn area(s: Shape) -> f64 {\n    match s {\n        Shape::Circle(r) => 3.14159 * r * r,\n        Shape::Rect(w, h) => w * h,\n    }\n}\n```\n\n`Option<T>`도 평범한 열거형이므로 똑같이 다룹니다. 이 조합이 러스트에서 가장 자주 보게 될 패턴입니다.\n\n```rust\nfn plus_one(x: Option<i32>) -> Option<i32> {\n    match x {\n        None => None,\n        Some(n) => Some(n + 1),\n    }\n}\n```\n\n`match`의 갈래는 **모든 경우를 빠짐없이 다루어야** 합니다. 위에서 `None` 갈래를 빼면 컴파일러가 \"`None`이 처리되지 않았다\"며 거절합니다. 이 완전성 검사 덕분에 \"값이 없을 수 있다는 걸 깜빡하는\" 실수가 원천 차단됩니다.\n\n모든 값을 일일이 나열할 수 없을 때는 마지막에 **포괄 패턴**을 둡니다. 남은 값을 실제로 쓰고 싶다면 변수 이름(`other` 등)으로 바인딩하고, 쓰지 않을 거라면 `_`를 씁니다. `_`는 값을 바인딩하지 않으므로 \"사용하지 않는 변수\" 경고도 나지 않습니다. 그리고 아무 일도 하지 않으려면 유닛 값 `()`를 적습니다.\n\n```rust\nfn give_hat() {}\nfn take_hat() {}\nfn move_player(spaces: u8) {}\nfn reroll() {}\n\nlet roll = 9u8;\nmatch roll {\n    3 => give_hat(),\n    7 => take_hat(),\n    other => move_player(other), // 남은 값을 사용\n}\n\nmatch roll {\n    3 => give_hat(),\n    7 => take_hat(),\n    _ => reroll(),               // 남은 값을 쓰지 않음\n}\n\nmatch roll {\n    3 => give_hat(),\n    7 => take_hat(),\n    _ => (),                     // 아무 일도 하지 않음\n}\n```\n\n패턴은 위에서 아래로 순서대로 검사되므로 포괄 패턴은 **반드시 마지막**에 와야 합니다. 앞에 두면 뒤 갈래는 영영 실행되지 않고, 러스트가 이를 경고해 줍니다.",
       "keyPoints": [
         "match는 값을 패턴과 차례로 비교해 가장 먼저 맞는 갈래를 실행하는 표현식이다.",
         "패턴에 변수 이름을 적으면 배리언트 안의 데이터를 꺼내 바인딩할 수 있다.",
@@ -278,12 +279,12 @@
         {
           "type": "fill",
           "q": "3과 7 외에는 아무 일도 하지 않게 하는 빈칸을 채우세요.",
-          "code": "match roll {\n    3 => give_hat(),\n    7 => take_hat(),\n    _ => ___,\n}",
+          "code": "fn main() {\n    let roll = 9;\n    match roll {\n        3 => println!(\"모자 획득\"),\n        7 => println!(\"모자 반납\"),\n        _ => ___,\n    }\n}",
           "options": [
             "()",
             "null",
             "None",
-            "return"
+            "void"
           ],
           "answer": 0,
           "explain": "유닛 값 `()`는 \"아무 값도 없음\"을 뜻하며, 이 갈래에서 아무 일도 하지 않겠다는 의사를 명시적으로 표현합니다."
@@ -298,12 +299,14 @@
           "type": "order",
           "q": "Option에서 값을 꺼내 두 배로 만드는 match를 올바른 순서로 배열하세요.",
           "items": [
+            "let v = Some(21);",
             "let doubled = match v {",
             "    Some(n) => n * 2,",
             "    None => 0,",
-            "};"
+            "};",
+            "println!(\"{doubled}\");"
           ],
-          "explain": "두 배리언트를 모두 다루므로 완전성 요구를 만족하고, match의 값이 그대로 함수 반환값이 됩니다."
+          "explain": "두 배리언트를 모두 다루므로 완전성 요구를 만족하고, match는 표현식이라 그 결과값을 그대로 변수에 담을 수 있습니다. 출력은 42입니다."
         },
         {
           "type": "match",
@@ -345,7 +348,7 @@
     {
       "id": "ch06-4",
       "title": "if let과 let...else로 간결하게",
-      "summary": "딱 한 가지 경우에만 관심이 있고 나머지는 무시하고 싶을 때, `match`는 조금 장황합니다. 아래 코드는 `Some`일 때만 무언가 하고 싶은데도 `_ => ()`라는 형식적인 갈래를 붙여야 합니다.\n\n```rust\nlet limit = Some(30u8);\nmatch limit {\n    Some(n) => println!(\"최대치는 {n}\"),\n    _ => (),\n}\n```\n\n`if let`을 쓰면 같은 동작을 더 짧게 쓸 수 있습니다. 패턴과 표현식을 `=`로 연결하고, 패턴이 맞을 때만 블록이 실행됩니다.\n\n```rust\nlet limit = Some(30u8);\nif let Some(n) = limit {\n    println!(\"최대치는 {n}\");\n}\n```\n\n`if let`은 결국 \"한 갈래만 있는 `match`\"의 문법 설탕입니다. 타이핑과 들여쓰기가 줄어드는 대신, `match`가 보장하던 완전성 검사를 잃습니다. 그러니 \"나머지를 정말 무시해도 되는가\"를 기준으로 골라 쓰면 됩니다.\n\n`else`를 붙이면 패턴이 맞지 않는 모든 경우를 처리할 수 있고, 이는 `match`의 `_` 갈래에 해당합니다.\n\n```rust\nlet mut others = 0;\nif let Coin::Quarter(state) = coin {\n    println!(\"{state:?} 주 기념 쿼터!\");\n} else {\n    others += 1;\n}\n```\n\n그런데 흔한 패턴이 하나 더 있습니다. 값이 있으면 계속 진행하고, 없으면 함수를 일찍 빠져나가는 경우입니다. `if let`으로 쓰면 실제 작업이 조건문 안쪽으로 밀려 들어가거나, 한쪽 갈래는 값을 만들고 다른 갈래는 함수를 벗어나는 어색한 모양이 됩니다. 이럴 때 쓰라고 만든 것이 **`let...else`**입니다.\n\n```rust\nfn describe(coin: Coin) -> Option<String> {\n    let Coin::Quarter(state) = coin else {\n        return None;\n    };\n\n    Some(format!(\"{state:?} 주 기념 쿼터\"))\n}\n```\n\n`let...else`는 왼쪽에 패턴, 오른쪽에 표현식을 두는 점은 `if let`과 같지만 **성공 갈래가 따로 없습니다.** 패턴이 맞으면 바인딩된 값이 **바깥 스코프**에 그대로 살아남고, 맞지 않으면 `else` 블록으로 흘러갑니다. 이 `else` 블록은 반드시 그 흐름을 끝내야 합니다(예: `return`, `break`, `continue`, `panic!`).\n\n핵심 효과는 가독성입니다. 실패 경우를 함수 첫머리에서 털어 내고, 본문은 \"값이 있다\"는 행복한 경로만 한 단계 들여쓰기 없이 이어 갑니다. `match`가 너무 장황하다고 느껴질 때 `if let`과 `let...else`를 떠올리면 됩니다.",
+      "summary": "딱 한 가지 경우에만 관심이 있고 나머지는 무시하고 싶을 때, `match`는 조금 장황합니다. 아래 코드는 `Some`일 때만 무언가 하고 싶은데도 `_ => ()`라는 형식적인 갈래를 붙여야 합니다.\n\n```rust\nlet limit = Some(30u8);\nmatch limit {\n    Some(n) => println!(\"최대치는 {n}\"),\n    _ => (),\n}\n```\n\n`if let`을 쓰면 같은 동작을 더 짧게 쓸 수 있습니다. 패턴과 표현식을 `=`로 연결하고, 패턴이 맞을 때만 블록이 실행됩니다.\n\n```rust\nlet limit = Some(30u8);\nif let Some(n) = limit {\n    println!(\"최대치는 {n}\");\n}\n```\n\n`if let`은 결국 \"한 갈래만 있는 `match`\"의 문법 설탕입니다. 타이핑과 들여쓰기가 줄어드는 대신, `match`가 보장하던 완전성 검사를 잃습니다. 그러니 \"나머지를 정말 무시해도 되는가\"를 기준으로 골라 쓰면 됩니다.\n\n`else`를 붙이면 패턴이 맞지 않는 모든 경우를 처리할 수 있고, 이는 `match`의 `_` 갈래에 해당합니다.\n\n```rust\n#[derive(Debug)]\nenum UsState { Alabama, Alaska }\nenum Coin { Penny, Quarter(UsState) }\n\nlet coin = Coin::Quarter(UsState::Alaska);\nlet mut others = 0;\nif let Coin::Quarter(state) = coin {\n    println!(\"{state:?} 주 기념 쿼터!\");\n} else {\n    others += 1;\n}\n```\n\n그런데 흔한 패턴이 하나 더 있습니다. 값이 있으면 계속 진행하고, 없으면 함수를 일찍 빠져나가는 경우입니다. `if let`으로 쓰면 실제 작업이 조건문 안쪽으로 밀려 들어가거나, 한쪽 갈래는 값을 만들고 다른 갈래는 함수를 벗어나는 어색한 모양이 됩니다. 이럴 때 쓰라고 만든 것이 **`let...else`**입니다(러스트 1.65에서 안정화된 문법이며 1.98 기준으로도 동일합니다).\n\n```rust\n#[derive(Debug)]\nenum UsState { Alabama, Alaska }\nenum Coin { Penny, Quarter(UsState) }\n\nfn describe(coin: Coin) -> Option<String> {\n    let Coin::Quarter(state) = coin else {\n        return None;\n    };\n\n    Some(format!(\"{state:?} 주 기념 쿼터\"))\n}\n\nfn main() {\n    println!(\"{:?}\", describe(Coin::Quarter(UsState::Alaska))); // Some(\"Alaska 주 기념 쿼터\")\n    println!(\"{:?}\", describe(Coin::Penny));                    // None\n}\n```\n\n`let...else`는 왼쪽에 패턴, 오른쪽에 표현식을 두는 점은 `if let`과 같지만 **성공 갈래가 따로 없습니다.** 패턴이 맞으면 바인딩된 값이 **바깥 스코프**에 그대로 살아남고, 맞지 않으면 `else` 블록으로 흘러갑니다. 이 `else` 블록은 반드시 그 흐름을 끝내야 합니다(예: `return`, `break`, `continue`, `panic!`).\n\n핵심 효과는 가독성입니다. 실패 경우를 함수 첫머리에서 털어 내고, 본문은 \"값이 있다\"는 행복한 경로만 한 단계 들여쓰기 없이 이어 갑니다. `match`가 너무 장황하다고 느껴질 때 `if let`과 `let...else`를 떠올리면 됩니다.",
       "keyPoints": [
         "`if let`은 한 갈래만 있는 match의 문법 설탕으로, 패턴이 맞을 때만 블록을 실행한다.",
         "`if let`은 간결한 대신 match의 완전성 검사를 포기한다.",
@@ -357,7 +360,7 @@
         {
           "type": "mc",
           "q": "다음 match와 똑같이 동작하는 코드는?",
-          "code": "match config {\n    Some(v) => println!(\"{v}\"),\n    _ => (),\n}",
+          "code": "let config = Some(7);\nmatch config {\n    Some(v) => println!(\"{v}\"),\n    _ => (),\n}",
           "options": [
             "if config == Some { println!(\"{config}\"); }",
             "if let config = Some(v) { println!(\"{v}\"); }",
@@ -421,12 +424,13 @@
           "type": "order",
           "q": "`let...else`로 행복한 경로를 유지하는 함수를 올바른 순서로 배열하세요.",
           "items": [
+            "let list = Some(vec![10, 20]);",
             "let Some(v) = list else {",
-            "    return -1;",
+            "    panic!(\"값이 없습니다\");",
             "};",
             "println!(\"{}\", v[0]);"
           ],
-          "explain": "실패 경우를 먼저 걷어 내고, 본문은 값이 있다는 전제로 평탄하게 이어집니다."
+          "explain": "실패 경우를 먼저 걷어 내고 본문은 값이 있다는 전제로 평탄하게 이어집니다. else 블록은 반드시 발산해야 하므로 여기서는 `panic!`을 씁니다. 출력은 10입니다."
         },
         {
           "type": "match",

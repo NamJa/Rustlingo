@@ -10,10 +10,10 @@
     {
       "id": "ch11-1",
       "title": "테스트 함수 만들기와 cargo test 읽기",
-      "summary": "Rust에서 테스트는 특별한 문법이 아니라 그냥 **함수**입니다. 함수 정의 바로 윗줄에 `#[test]` 속성만 붙이면 됩니다. 속성(attribute)은 코드에 붙이는 메타데이터로, 구조체에 `#[derive(Debug)]`를 붙였던 것과 같은 종류입니다.\n\n`cargo test`를 실행하면 Cargo는 테스트 전용 바이너리를 따로 빌드합니다. 이 바이너리는 `#[test]`가 붙은 함수만 찾아 실행하고 각각의 결과를 보고합니다. 테스트 모듈 안에 도우미 함수가 섞여 있어도 되는 이유가 여기 있습니다. 속성이 없으면 그냥 평범한 함수일 뿐이니까요.\n\n테스트 함수 본문은 보통 세 단계를 따릅니다. 필요한 데이터나 상태를 준비하고, 검사하려는 코드를 호출하고, 결과가 기대와 같은지 단언(assert)합니다.\n\n**테스트가 실패하는 조건은 단 하나, 패닉입니다.** 각 테스트는 별도의 스레드에서 돌고, 메인 스레드는 그 스레드가 죽은 것을 보고 실패로 기록합니다. 그래서 `panic!`을 직접 부르든, 인덱스 범위를 벗어나든, 단언 매크로가 내부에서 패닉을 일으키든 결과는 모두 '실패'로 같습니다.\n\n가장 기본적인 단언 도구는 `assert!` 매크로입니다. 인자로 받은 불리언 표현식이 `true`면 아무 일도 없고, `false`면 `panic!`을 호출해 테스트를 실패시킵니다.\n\n```rust\npub struct Tank {\n    capacity: u32,\n}\n\nimpl Tank {\n    pub fn fits(&self, amount: u32) -> bool {\n        amount <= self.capacity\n    }\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn small_amount_fits() {\n        let tank = Tank { capacity: 50 };\n        assert!(tank.fits(20));\n    }\n\n    #[test]\n    fn overflow_does_not_fit() {\n        let tank = Tank { capacity: 50 };\n        assert!(!tank.fits(80));\n    }\n}\n```\n\n두 번째 테스트처럼 '거짓이어야 정상'인 조건은 `!`로 뒤집어서 `assert!`에 넘깁니다.\n\n출력 요약 줄은 읽는 법을 알아 두면 편합니다. `2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`에서 `ignored`는 `#[ignore]`로 건너뛴 개수, `filtered out`은 이름 필터에 걸러진 개수, `measured`는 나이틀리 전용 벤치마크 개수입니다. 실패가 있으면 개별 결과와 요약 사이에 실패 원인을 자세히 보여주는 구역과, 실패한 테스트 이름만 모아 놓은 구역이 추가로 나타납니다.",
+      "summary": "Rust에서 테스트는 특별한 문법이 아니라 그냥 **함수**입니다. 함수 정의 바로 윗줄에 `#[test]` 속성만 붙이면 됩니다. 속성(attribute)은 코드에 붙이는 메타데이터로, 구조체에 `#[derive(Debug)]`를 붙였던 것과 같은 종류입니다. `#[test]`는 함수에만 붙일 수 있습니다. (Rust 1.93부터는 트레잇 메서드나 타입 정의에 `#[test]`를 붙이면 경고가 아니라 컴파일 에러입니다.)\n\n`cargo test`를 실행하면 Cargo는 테스트 전용 바이너리를 따로 빌드합니다. 이 바이너리는 `#[test]`가 붙은 함수만 찾아 실행하고 각각의 결과를 보고합니다. 테스트 모듈 안에 도우미 함수가 섞여 있어도 되는 이유가 여기 있습니다. 속성이 없으면 그냥 평범한 함수일 뿐이니까요.\n\n테스트 함수 본문은 보통 세 단계를 따릅니다. 필요한 데이터나 상태를 준비하고, 검사하려는 코드를 호출하고, 결과가 기대와 같은지 단언(assert)합니다.\n\n**테스트가 실패하는 조건은 단 하나, 패닉입니다.** 각 테스트는 별도의 스레드에서 돌고, 메인 스레드는 그 스레드가 죽은 것을 보고 실패로 기록합니다. 그래서 `panic!`을 직접 부르든, 인덱스 범위를 벗어나든, 단언 매크로가 내부에서 패닉을 일으키든 결과는 모두 '실패'로 같습니다. (`Result`를 반환하는 테스트만 예외로, `Err`를 돌려줘도 실패합니다. 레슨 2에서 다룹니다.)\n\n가장 기본적인 단언 도구는 `assert!` 매크로입니다. 인자로 받은 불리언 표현식이 `true`면 아무 일도 없고, `false`면 `panic!`을 호출해 테스트를 실패시킵니다.\n\n```rust\npub struct Tank {\n    capacity: u32,\n}\n\nimpl Tank {\n    pub fn fits(&self, amount: u32) -> bool {\n        amount <= self.capacity\n    }\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn small_amount_fits() {\n        let tank = Tank { capacity: 50 };\n        assert!(tank.fits(20));\n    }\n\n    #[test]\n    fn overflow_does_not_fit() {\n        let tank = Tank { capacity: 50 };\n        assert!(!tank.fits(80));\n    }\n}\n```\n\n두 번째 테스트처럼 '거짓이어야 정상'인 조건은 `!`로 뒤집어서 `assert!`에 넘깁니다.\n\n출력 요약 줄은 읽는 법을 알아 두면 편합니다. `2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`에서 `ignored`는 `#[ignore]`로 건너뛴 개수, `filtered out`은 이름 필터에 걸러진 개수, `measured`는 나이틀리 전용 벤치마크 개수입니다. 실패가 있으면 개별 결과와 요약 사이에 실패 원인을 자세히 보여주는 구역과, 실패한 테스트 이름만 모아 놓은 구역이 추가로 나타납니다.",
       "keyPoints": [
         "`#[test]`를 함수 위에 붙이면 `cargo test`가 그 함수를 테스트로 인식해 실행한다.",
-        "테스트는 오직 패닉이 발생했을 때만 실패하며, 각 테스트는 별도 스레드에서 실행된다.",
+        "테스트는 패닉이 발생하면 실패하며, 각 테스트는 별도 스레드에서 실행된다.",
         "`assert!`는 인자가 `false`일 때 `panic!`을 호출해 테스트를 실패시킨다.",
         "거짓이어야 정상인 조건은 `!`로 부정해서 `assert!`에 넘긴다.",
         "요약 줄의 passed/failed/ignored/filtered out은 각각 통과·실패·무시·필터 제외 개수를 뜻한다."
@@ -70,8 +70,8 @@
             "#[cfg(test)]",
             "mod tests {",
             "    #[test]",
-            "    fn it_works() {",
-            "        assert!(1 + 1 == 2);"
+            "    fn it_works() { assert!(1 + 1 == 2); }",
+            "}"
           ],
           "explain": "`#[cfg(test)]`는 모듈 선언 바로 앞에, `#[test]`는 함수 선언 바로 앞에 옵니다. 속성은 항상 꾸미려는 대상 직전 줄에 놓습니다."
         },
@@ -79,10 +79,22 @@
           "type": "match",
           "q": "`cargo test` 요약 줄의 항목과 그 의미를 연결하세요.",
           "pairs": [
-            ["passed", "성공한 테스트 개수"],
-            ["failed", "패닉으로 실패한 테스트 개수"],
-            ["ignored", "`#[ignore]`가 붙어 건너뛴 개수"],
-            ["filtered out", "이름 필터에 걸려 실행되지 않은 개수"]
+            [
+              "passed",
+              "성공한 테스트 개수"
+            ],
+            [
+              "failed",
+              "패닉으로 실패한 테스트 개수"
+            ],
+            [
+              "ignored",
+              "`#[ignore]`가 붙어 건너뛴 개수"
+            ],
+            [
+              "filtered out",
+              "이름 필터에 걸려 실행되지 않은 개수"
+            ]
           ],
           "explain": "요약 줄만 읽어도 무엇이 실행되지 않았는지 구분할 수 있습니다. 건너뛴 이유가 속성인지 필터인지가 핵심 차이입니다."
         },
@@ -135,7 +147,12 @@
           "type": "fill",
           "q": "값이 100을 넘을 때만 나는 패닉을 정확히 검증하려고 합니다. 빈칸에 들어갈 것은?",
           "code": "#[test]\n#[should_panic(___ = \"1 이상 100 이하\")]\nfn rejects_too_large() {\n    Score::new(500);\n}",
-          "options": ["message", "expected", "contains", "panic"],
+          "options": [
+            "message",
+            "expected",
+            "contains",
+            "panic"
+          ],
           "answer": 1,
           "explain": "`expected` 매개변수에 넣은 문자열이 실제 패닉 메시지의 부분 문자열이어야 테스트가 통과합니다."
         },
@@ -155,7 +172,12 @@
           "type": "output",
           "q": "이 테스트의 결과는?",
           "code": "fn shout(s: &str) -> String {\n    s.to_uppercase()\n}\n\n#[test]\nfn output_differs_from_input() {\n    assert_ne!(shout(\"hi\"), String::from(\"hi\"));\n}",
-          "options": ["통과한다", "실패한다", "컴파일 에러가 난다", "패닉하지만 통과로 기록된다"],
+          "options": [
+            "통과한다",
+            "실패한다",
+            "컴파일 에러가 난다",
+            "패닉하지만 통과로 기록된다"
+          ],
           "answer": 0,
           "explain": "`shout(\"hi\")`는 `\"HI\"`라서 `\"hi\"`와 다릅니다. `assert_ne!`는 두 값이 다를 때 통과합니다."
         },
@@ -163,10 +185,22 @@
           "type": "match",
           "q": "각 도구와 쓰임새를 연결하세요.",
           "pairs": [
-            ["assert!", "불리언 조건이 참인지 검사"],
-            ["assert_eq!", "두 값이 같은지 검사하고 실패 시 양쪽 값 출력"],
-            ["assert_ne!", "값이 무엇이든 특정 값과는 달라야 함을 검사"],
-            ["#[should_panic]", "본문이 패닉해야 통과함을 검사"]
+            [
+              "assert!",
+              "불리언 조건이 참인지 검사"
+            ],
+            [
+              "assert_eq!",
+              "두 값이 같은지 검사하고 실패 시 양쪽 값 출력"
+            ],
+            [
+              "assert_ne!",
+              "값이 무엇이든 특정 값과는 달라야 함을 검사"
+            ],
+            [
+              "#[should_panic]",
+              "본문이 패닉해야 통과함을 검사"
+            ]
           ],
           "explain": "정확한 기대값을 모르지만 '적어도 이 값은 아니어야 한다'를 알 때가 `assert_ne!`의 전형적인 용도입니다."
         },
@@ -224,7 +258,12 @@
           "type": "fill",
           "q": "실행에 몇 분씩 걸리는 테스트를 평소 실행에서 제외하려 합니다. 빈칸에 들어갈 것은?",
           "code": "#[test]\n#[___]\nfn full_index_rebuild() {\n    // 아주 오래 걸리는 작업\n}",
-          "options": ["skip", "cfg(test)", "ignore", "should_panic"],
+          "options": [
+            "skip",
+            "cfg(test)",
+            "ignore",
+            "should_panic"
+          ],
           "answer": 2,
           "explain": "`#[ignore]`가 붙은 테스트는 평소 `cargo test`에서 `ignored`로 표시되고 실행되지 않습니다."
         },
@@ -257,10 +296,22 @@
           "type": "match",
           "q": "명령과 그 효과를 연결하세요.",
           "pairs": [
-            ["cargo test -- --ignored", "무시 표시된 테스트만 실행"],
-            ["cargo test -- --include-ignored", "무시된 것을 포함해 전부 실행"],
-            ["cargo test -- --show-output", "통과한 테스트의 출력까지 표시"],
-            ["cargo test -- --test-threads=1", "테스트를 하나씩 순차 실행"]
+            [
+              "cargo test -- --ignored",
+              "무시 표시된 테스트만 실행"
+            ],
+            [
+              "cargo test -- --include-ignored",
+              "무시된 것을 포함해 전부 실행"
+            ],
+            [
+              "cargo test -- --show-output",
+              "통과한 테스트의 출력까지 표시"
+            ],
+            [
+              "cargo test -- --test-threads=1",
+              "테스트를 하나씩 순차 실행"
+            ]
           ],
           "explain": "`--ignored`와 `--include-ignored`의 차이가 핵심입니다. 전자는 '무시된 것만', 후자는 '무시된 것까지 전부'입니다."
         },
@@ -318,7 +369,12 @@
           "type": "fill",
           "q": "단위 테스트 모듈에서 바깥 모듈의 항목을 전부 가져오려 합니다. 빈칸에 들어갈 것은?",
           "code": "#[cfg(test)]\nmod tests {\n    use ___;\n\n    #[test]\n    fn works() {\n        assert_eq!(collapse_spaces(\"a  b\"), \"a b\");\n    }\n}",
-          "options": ["crate::tests::*", "super::*", "self::*", "std::*"],
+          "options": [
+            "crate::tests::*",
+            "super::*",
+            "self::*",
+            "std::*"
+          ],
           "answer": 1,
           "explain": "`super`는 부모 모듈을 가리킵니다. 글롭 `*`와 함께 쓰면 부모에 정의된 모든 항목을 테스트 모듈 스코프로 가져옵니다."
         },
@@ -355,7 +411,8 @@
             "mod common;",
             "#[test]",
             "fn trims_and_collapses() {",
-            "    common::setup();"
+            "    common::setup();",
+            "}"
           ],
           "explain": "`use`와 `mod` 선언을 파일 맨 위에 두고, 그다음 테스트 함수를 정의합니다. `mod common;`이 있어야 `common::setup()`을 호출할 수 있습니다."
         },
@@ -363,10 +420,22 @@
           "type": "match",
           "q": "테스트 종류와 특징을 연결하세요.",
           "pairs": [
-            ["단위 테스트", "`src` 안 같은 파일에 두고 비공개 항목도 검사"],
-            ["통합 테스트", "`tests/` 디렉터리에서 공개 API만 사용"],
-            ["tests/common/mod.rs", "출력에 구역을 만들지 않는 공용 도우미"],
-            ["#[cfg(test)]", "테스트 실행 시에만 컴파일하라는 표시"]
+            [
+              "단위 테스트",
+              "`src` 안 같은 파일에 두고 비공개 항목도 검사"
+            ],
+            [
+              "통합 테스트",
+              "`tests/` 디렉터리에서 공개 API만 사용"
+            ],
+            [
+              "tests/common/mod.rs",
+              "출력에 구역을 만들지 않는 공용 도우미"
+            ],
+            [
+              "#[cfg(test)]",
+              "테스트 실행 시에만 컴파일하라는 표시"
+            ]
           ],
           "explain": "단위 테스트는 내부를 좁게, 통합 테스트는 외부 시선으로 넓게 봅니다. 둘 다 있어야 부분과 전체를 함께 보장할 수 있습니다."
         },

@@ -10,7 +10,7 @@
     {
       "id": "ch05-1",
       "title": "구조체 정의하고 인스턴스 만들기",
-      "summary": "구조체(struct)는 여러 값을 하나의 이름 아래 묶는 사용자 정의 타입입니다. 튜플과 마찬가지로 서로 다른 타입을 함께 담을 수 있지만, 결정적인 차이가 하나 있습니다. 구조체는 각 조각에 **이름**을 붙입니다. 덕분에 \"0번이 가로였나 세로였나\" 같은 순서 기억에 의존하지 않아도 됩니다.\n\n정의는 `struct` 키워드 뒤에 타입 이름을 적고, 중괄호 안에 **필드**의 이름과 타입을 나열합니다.\n\n```rust\nstruct Book {\n    title: String,\n    pages: u32,\n    borrowed: bool,\n}\n```\n\n정의는 설계도일 뿐이라서, 실제 값을 쓰려면 **인스턴스**를 만들어야 합니다. 타입 이름 뒤 중괄호 안에 `필드: 값` 쌍을 채우면 됩니다. 이때 필드를 정의한 순서대로 적을 필요는 없습니다.\n\n```rust\nlet b = Book {\n    pages: 320,\n    title: String::from(\"모두의 러스트\"),\n    borrowed: false,\n};\n```\n\n값을 꺼낼 때는 점 표기법을 씁니다(`b.pages`). 값을 바꾸려면 인스턴스 전체가 `mut`이어야 합니다. 러스트에는 \"이 필드만 가변\" 같은 선택지가 없습니다. 인스턴스가 통째로 가변이거나, 통째로 불변이거나 둘 중 하나입니다.\n\n```rust\nlet mut b = Book { title: String::from(\"제목\"), pages: 100, borrowed: false };\nb.borrowed = true; // b가 mut라서 가능\n```\n\n구조체 표현식도 결국 값을 만드는 표현식이므로, 함수 본문의 마지막 표현식으로 두면 그대로 반환됩니다. 그런데 매개변수 이름과 필드 이름이 같으면 `title: title`처럼 같은 단어를 두 번 쓰게 되어 번거롭습니다. 이럴 때 **필드 초기화 축약법(field init shorthand)**을 쓰면 이름 하나만 적어도 됩니다.\n\n```rust\nfn new_book(title: String, pages: u32) -> Book {\n    Book {\n        title,   // title: title 과 동일\n        pages,   // pages: pages 와 동일\n        borrowed: false,\n    }\n}\n```\n\n마지막으로, 위 예제가 `&str`이 아니라 `String`을 필드 타입으로 쓴 것은 우연이 아닙니다. 인스턴스가 자기 데이터를 직접 **소유**하게 하려는 의도적인 선택입니다. 구조체 안에 참조를 담는 것도 가능하지만 그러려면 라이프타임 표기가 필요하고(10장), 그냥 `username: &str`이라고 적으면 컴파일러가 라이프타임 지정자가 빠졌다며 거절합니다.",
+      "summary": "구조체(struct)는 여러 값을 하나의 이름 아래 묶는 사용자 정의 타입입니다. 튜플과 마찬가지로 서로 다른 타입을 함께 담을 수 있지만, 결정적인 차이가 하나 있습니다. 구조체는 각 조각에 **이름**을 붙입니다. 덕분에 \"0번이 가로였나 세로였나\" 같은 순서 기억에 의존하지 않아도 됩니다.\n\n정의는 `struct` 키워드 뒤에 타입 이름을 적고, 중괄호 안에 **필드**의 이름과 타입을 나열합니다.\n\n```rust\nstruct Book {\n    title: String,\n    pages: u32,\n    borrowed: bool,\n}\n```\n\n정의는 설계도일 뿐이라서, 실제 값을 쓰려면 **인스턴스**를 만들어야 합니다. 타입 이름 뒤 중괄호 안에 `필드: 값` 쌍을 채우면 됩니다. 이때 필드를 정의한 순서대로 적을 필요는 없습니다.\n\n```rust\nstruct Book { title: String, pages: u32, borrowed: bool }\n\nlet b = Book {\n    pages: 320,\n    title: String::from(\"모두의 러스트\"),\n    borrowed: false,\n};\n```\n\n값을 꺼낼 때는 점 표기법을 씁니다(`b.pages`). 값을 바꾸려면 인스턴스 전체가 `mut`이어야 합니다. 러스트에는 \"이 필드만 가변\" 같은 선택지가 없습니다. 인스턴스가 통째로 가변이거나, 통째로 불변이거나 둘 중 하나입니다.\n\n```rust\nstruct Book { title: String, pages: u32, borrowed: bool }\n\nlet mut b = Book { title: String::from(\"제목\"), pages: 100, borrowed: false };\nb.borrowed = true; // b가 mut라서 가능\n```\n\n구조체 표현식도 결국 값을 만드는 표현식이므로, 함수 본문의 마지막 표현식으로 두면 그대로 반환됩니다. 그런데 매개변수 이름과 필드 이름이 같으면 `title: title`처럼 같은 단어를 두 번 쓰게 되어 번거롭습니다. 이럴 때 **필드 초기화 축약법(field init shorthand)**을 쓰면 이름 하나만 적어도 됩니다.\n\n```rust\nstruct Book { title: String, pages: u32, borrowed: bool }\n\nfn new_book(title: String, pages: u32) -> Book {\n    Book {\n        title,   // title: title 과 동일\n        pages,   // pages: pages 와 동일\n        borrowed: false,\n    }\n}\n```\n\n마지막으로, 위 예제가 `&str`이 아니라 `String`을 필드 타입으로 쓴 것은 우연이 아닙니다. 인스턴스가 자기 데이터를 직접 **소유**하게 하려는 의도적인 선택입니다. 구조체 안에 참조를 담는 것도 가능하지만 그러려면 라이프타임 표기가 필요하고(10장), 그냥 `username: &str`이라고 적으면 컴파일러가 라이프타임 지정자가 빠졌다며 거절합니다.",
       "keyPoints": [
         "구조체는 여러 값을 묶되 각 조각에 이름을 붙이므로 순서에 의존하지 않는다.",
         "인스턴스를 만들 때 필드 순서는 정의 순서와 달라도 된다.",
@@ -44,12 +44,12 @@
           "code": "struct User {\n    name: String,\n    age: u32,\n}\n\nfn build(name: String, age: u32) -> User {\n    User { ___, age }\n}",
           "options": [
             "name",
-            "name: name.clone()",
+            "name.clone()",
             "String name",
             "&name"
           ],
           "answer": 0,
-          "explain": "매개변수 이름이 필드 이름과 같으므로 `name` 하나만 적으면 `name: name`과 똑같이 동작합니다."
+          "explain": "매개변수 이름이 필드 이름과 같으므로 `name` 하나만 적으면 `name: name`과 똑같이 동작합니다. 축약법은 필드 이름과 똑같은 식별자 하나만 허용하므로 `name.clone()`처럼 식을 쓰려면 `name: name.clone()`으로 필드 이름을 적어야 합니다."
         },
         {
           "type": "output",
@@ -213,7 +213,7 @@
     {
       "id": "ch05-3",
       "title": "구조체로 다듬는 예제와 디버그 출력",
-      "summary": "구조체가 왜 좋은지는 코드를 단계적으로 고쳐 보면 잘 드러납니다. 직사각형 넓이를 구하는 함수를 생각해 봅시다. 처음에는 `fn area(w: u32, h: u32) -> u32`처럼 값을 따로 받습니다. 동작은 하지만 두 값이 서로 관련 있다는 사실이 시그니처 어디에도 드러나지 않습니다.\n\n튜플로 묶으면 인자는 하나가 되지만 이번엔 `dims.0`, `dims.1`처럼 인덱스로 접근해야 해서 어느 쪽이 가로인지 알 수 없습니다. 구조체로 바꾸면 이름과 의미가 동시에 살아납니다.\n\n```rust\nstruct Rect {\n    width: u32,\n    height: u32,\n}\n\nfn area(r: &Rect) -> u32 {\n    r.width * r.height\n}\n```\n\n여기서 `&Rect`로 **빌려 오는** 점이 중요합니다. 소유권을 가져가지 않으므로 호출한 쪽에서 계속 그 값을 쓸 수 있습니다. 빌린 구조체의 필드를 읽는 것은 이동이 아니므로 안전합니다.\n\n디버깅할 때는 구조체 전체를 한 번에 찍어 보고 싶어집니다. 그런데 `println!(\"{r}\")`은 컴파일되지 않습니다. `{}`는 `Display` 트레이트를 요구하는데, 구조체를 어떤 모양으로 보여 줄지는 언어가 마음대로 정할 수 없기 때문입니다. 개발자용 출력은 `Debug` 트레이트가 담당하고, 형식 지정자 `{:?}`로 요청합니다. 다만 `Debug`도 자동으로 붙지 않으므로 `#[derive(Debug)]` 어트리뷰트로 명시적으로 옵트인해야 합니다.\n\n```rust\n#[derive(Debug)]\nstruct Rect {\n    width: u32,\n    height: u32,\n}\n\nfn main() {\n    let r = Rect { width: 3, height: 4 };\n    println!(\"{r:?}\");   // Rect { width: 3, height: 4 }\n    println!(\"{r:#?}\");  // 여러 줄로 보기 좋게\n}\n```\n\n`{:#?}`는 같은 내용을 필드마다 줄을 나눠 들여쓰기해 출력합니다. 필드가 많은 구조체일수록 읽기 편합니다.\n\n또 하나의 도구는 `dbg!` 매크로입니다. `println!`이 참조를 받아 표준 출력(stdout)으로 찍는 것과 달리, `dbg!`는 **표현식의 소유권을 가져가** 파일 이름과 줄 번호, 그리고 값을 표준 에러(stderr)로 출력한 뒤 **소유권을 그대로 돌려줍니다**. 돌려주기 때문에 식 한가운데에 끼워 넣어도 프로그램 동작이 바뀌지 않습니다.\n\n```rust\nfn main() {\n    let scale = 3;\n    let r = Rect {\n        width: dbg!(10 * scale), // 30을 찍고 30을 그대로 반환\n        height: 4,\n    };\n    dbg!(&r); // 소유권을 뺏기지 않으려고 참조를 넘긴다\n}\n```\n\n`dbg!(&r)`처럼 참조를 넘기는 관례를 기억해 두면, 값을 빼앗기지 않고도 중간 상태를 들여다볼 수 있습니다. `Debug` 외에도 `derive`로 얻을 수 있는 트레이트가 여럿 있습니다.",
+      "summary": "구조체가 왜 좋은지는 코드를 단계적으로 고쳐 보면 잘 드러납니다. 직사각형 넓이를 구하는 함수를 생각해 봅시다. 처음에는 `fn area(w: u32, h: u32) -> u32`처럼 값을 따로 받습니다. 동작은 하지만 두 값이 서로 관련 있다는 사실이 시그니처 어디에도 드러나지 않습니다.\n\n튜플로 묶으면 인자는 하나가 되지만 이번엔 `dims.0`, `dims.1`처럼 인덱스로 접근해야 해서 어느 쪽이 가로인지 알 수 없습니다. 구조체로 바꾸면 이름과 의미가 동시에 살아납니다.\n\n```rust\nstruct Rect {\n    width: u32,\n    height: u32,\n}\n\nfn area(r: &Rect) -> u32 {\n    r.width * r.height\n}\n```\n\n여기서 `&Rect`로 **빌려 오는** 점이 중요합니다. 소유권을 가져가지 않으므로 호출한 쪽에서 계속 그 값을 쓸 수 있습니다. 빌린 구조체의 필드를 읽는 것은 이동이 아니므로 안전합니다.\n\n디버깅할 때는 구조체 전체를 한 번에 찍어 보고 싶어집니다. 그런데 `println!(\"{r}\")`은 컴파일되지 않습니다. `{}`는 `Display` 트레이트를 요구하는데, 구조체를 어떤 모양으로 보여 줄지는 언어가 마음대로 정할 수 없기 때문입니다. 개발자용 출력은 `Debug` 트레이트가 담당하고, 형식 지정자 `{:?}`로 요청합니다. 다만 `Debug`도 자동으로 붙지 않으므로 `#[derive(Debug)]` 어트리뷰트로 명시적으로 옵트인해야 합니다.\n\n```rust\n#[derive(Debug)]\nstruct Rect {\n    width: u32,\n    height: u32,\n}\n\nfn main() {\n    let r = Rect { width: 3, height: 4 };\n    println!(\"{r:?}\");   // Rect { width: 3, height: 4 }\n    println!(\"{r:#?}\");  // 여러 줄로 보기 좋게\n}\n```\n\n`{:#?}`는 같은 내용을 필드마다 줄을 나눠 들여쓰기해 출력합니다. 필드가 많은 구조체일수록 읽기 편합니다.\n\n또 하나의 도구는 `dbg!` 매크로입니다. `println!`이 참조를 받아 표준 출력(stdout)으로 찍는 것과 달리, `dbg!`는 **표현식의 소유권을 가져가** 파일 이름과 줄 번호, 그리고 값을 표준 에러(stderr)로 출력한 뒤 **소유권을 그대로 돌려줍니다**. 돌려주기 때문에 식 한가운데에 끼워 넣어도 프로그램 동작이 바뀌지 않습니다.\n\n```rust\n#[derive(Debug)]\nstruct Rect { width: u32, height: u32 }\n\nfn main() {\n    let scale = 3;\n    let r = Rect {\n        width: dbg!(10 * scale), // 30을 찍고 30을 그대로 반환\n        height: 4,\n    };\n    dbg!(&r); // 소유권을 뺏기지 않으려고 참조를 넘긴다\n}\n```\n\n`dbg!(&r)`처럼 참조를 넘기는 관례를 기억해 두면, 값을 빼앗기지 않고도 중간 상태를 들여다볼 수 있습니다. `Debug` 외에도 `derive`로 얻을 수 있는 트레이트가 여럿 있습니다.",
       "keyPoints": [
         "구조체로 묶으면 함수 시그니처가 값들 사이의 관계까지 설명해 준다.",
         "`{}`는 Display, `{:?}`는 Debug를 요구하며 구조체는 Display를 기본 제공하지 않는다.",
@@ -331,7 +331,7 @@
     {
       "id": "ch05-4",
       "title": "메서드와 연관 함수",
-      "summary": "메서드는 함수와 거의 같습니다. `fn`으로 선언하고, 매개변수와 반환값을 가지며, 호출하면 본문이 실행됩니다. 다른 점은 **`impl` 블록 안에 정의되고 첫 매개변수가 항상 `self`**라는 것입니다. `self`는 메서드를 호출한 그 인스턴스를 가리킵니다.\n\n```rust\nstruct Rect {\n    width: u32,\n    height: u32,\n}\n\nimpl Rect {\n    fn area(&self) -> u32 {\n        self.width * self.height\n    }\n}\n\nlet r = Rect { width: 3, height: 4 };\nprintln!(\"{}\", r.area()); // 12\n```\n\n`&self`는 사실 `self: &Self`의 줄임말이고, `Self`는 `impl` 뒤에 적은 타입의 별칭입니다. 첫 매개변수는 세 가지 형태 중 하나를 고릅니다. 읽기만 하면 `&self`, 인스턴스를 고쳐야 하면 `&mut self`, 인스턴스를 소비해 다른 것으로 변환하면서 원본을 못 쓰게 만들고 싶으면 `self`를 씁니다. 마지막 형태는 비교적 드뭅니다.\n\n```rust\nimpl Rect {\n    fn scale(&mut self, factor: u32) {\n        self.width *= factor;\n        self.height *= factor;\n    }\n\n    fn can_hold(&self, other: &Rect) -> bool {\n        self.width > other.width && self.height > other.height\n    }\n}\n```\n\n`can_hold`처럼 `self` 뒤에 매개변수를 더 붙일 수 있고, 그 매개변수들은 일반 함수의 매개변수와 똑같이 동작합니다.\n\n메서드 이름은 필드 이름과 같아도 됩니다. 괄호가 붙어 있으면 메서드, 없으면 필드로 해석되기 때문입니다. `self.width`는 값, `self.width()`는 호출입니다. 이런 방식은 필드를 비공개로 두고 읽기 전용 접근만 열어 주는 게터를 만들 때 쓰이며, 러스트는 게터를 자동 생성해 주지 않습니다.\n\nC/C++과 달리 러스트에는 `->` 연산자가 없습니다. 대신 **자동 참조·역참조**가 있어서, `r.area()`라고 쓰면 컴파일러가 메서드 시그니처에 맞춰 `&`, `&mut`, `*`를 알아서 붙여 줍니다. 그래서 `(&r).area()`라고 쓸 필요가 없습니다.\n\n`impl` 블록 안의 모든 함수를 **연관 함수(associated function)**라고 부릅니다. 그중 `self`를 받지 않는 것도 만들 수 있는데, 인스턴스가 없어도 호출할 수 있으므로 주로 생성자 역할을 합니다. 이름을 `new`로 짓는 관례가 있지만 `new`는 언어가 정한 특별한 이름이 아닙니다. 호출할 때는 `::`를 씁니다.\n\n```rust\nimpl Rect {\n    fn new(width: u32, height: u32) -> Self {\n        Self { width, height }\n    }\n\n    fn square(size: u32) -> Self {\n        Self { width: size, height: size }\n    }\n}\n\nlet sq = Rect::square(5);\n```\n\n한 타입에 `impl` 블록을 여러 개 두는 것도 문법적으로 허용됩니다. 지금은 나눌 이유가 없지만, 제네릭과 트레이트를 다루는 10장에서 유용해집니다.",
+      "summary": "메서드는 함수와 거의 같습니다. `fn`으로 선언하고, 매개변수와 반환값을 가지며, 호출하면 본문이 실행됩니다. 다른 점은 **`impl` 블록 안에 정의되고 첫 매개변수가 항상 `self`**라는 것입니다. `self`는 메서드를 호출한 그 인스턴스를 가리킵니다.\n\n```rust\nstruct Rect {\n    width: u32,\n    height: u32,\n}\n\nimpl Rect {\n    fn area(&self) -> u32 {\n        self.width * self.height\n    }\n}\n\nlet r = Rect { width: 3, height: 4 };\nprintln!(\"{}\", r.area()); // 12\n```\n\n`&self`는 사실 `self: &Self`의 줄임말이고, `Self`는 `impl` 뒤에 적은 타입의 별칭입니다. 첫 매개변수는 세 가지 형태 중 하나를 고릅니다. 읽기만 하면 `&self`, 인스턴스를 고쳐야 하면 `&mut self`, 인스턴스를 소비해 다른 것으로 변환하면서 원본을 못 쓰게 만들고 싶으면 `self`를 씁니다. 마지막 형태는 비교적 드뭅니다.\n\n```rust\nstruct Rect { width: u32, height: u32 }\n\nimpl Rect {\n    fn scale(&mut self, factor: u32) {\n        self.width *= factor;\n        self.height *= factor;\n    }\n\n    fn can_hold(&self, other: &Rect) -> bool {\n        self.width > other.width && self.height > other.height\n    }\n}\n```\n\n`can_hold`처럼 `self` 뒤에 매개변수를 더 붙일 수 있고, 그 매개변수들은 일반 함수의 매개변수와 똑같이 동작합니다.\n\n메서드 이름은 필드 이름과 같아도 됩니다. 괄호가 붙어 있으면 메서드, 없으면 필드로 해석되기 때문입니다. `self.width`는 값, `self.width()`는 호출입니다. 이런 방식은 필드를 비공개로 두고 읽기 전용 접근만 열어 주는 게터를 만들 때 쓰이며, 러스트는 게터를 자동 생성해 주지 않습니다.\n\nC/C++과 달리 러스트에는 `->` 연산자가 없습니다. 대신 **자동 참조·역참조**가 있어서, `r.area()`라고 쓰면 컴파일러가 메서드 시그니처에 맞춰 `&`, `&mut`, `*`를 알아서 붙여 줍니다. 그래서 `(&r).area()`라고 쓸 필요가 없습니다.\n\n`impl` 블록 안의 모든 함수를 **연관 함수(associated function)**라고 부릅니다. 그중 `self`를 받지 않는 것도 만들 수 있는데, 인스턴스가 없어도 호출할 수 있으므로 주로 생성자 역할을 합니다. 이름을 `new`로 짓는 관례가 있지만 `new`는 언어가 정한 특별한 이름이 아닙니다. 호출할 때는 `::`를 씁니다.\n\n```rust\nstruct Rect { width: u32, height: u32 }\n\nimpl Rect {\n    fn new(width: u32, height: u32) -> Self {\n        Self { width, height }\n    }\n\n    fn square(size: u32) -> Self {\n        Self { width: size, height: size }\n    }\n}\n\nlet sq = Rect::square(5);\n```\n\n한 타입에 `impl` 블록을 여러 개 두는 것도 문법적으로 허용됩니다. 지금은 나눌 이유가 없지만, 제네릭과 트레이트를 다루는 10장에서 유용해집니다.",
       "keyPoints": [
         "메서드는 impl 블록 안에 정의하며 첫 매개변수가 항상 self다.",
         "`&self`는 `self: &Self`의 줄임말이고 Self는 impl 대상 타입의 별칭이다.",
@@ -361,12 +361,12 @@
         {
           "type": "fill",
           "q": "인스턴스의 필드를 수정하는 메서드입니다. 빈칸에 들어갈 것은?",
-          "code": "impl Counter {\n    fn bump(___) {\n        self.count += 1;\n    }\n}",
+          "code": "struct Counter {\n    count: u32,\n}\n\nimpl Counter {\n    fn bump(___) {\n        self.count += 1;\n    }\n}",
           "options": [
             "self",
             "&self",
             "&mut self",
-            "mut self: Self"
+            "&mut Counter"
           ],
           "answer": 2,
           "explain": "필드에 값을 대입하려면 인스턴스를 가변으로 빌려야 하므로 `&mut self`가 필요합니다."
@@ -388,11 +388,11 @@
           "type": "order",
           "q": "정사각형을 만드는 연관 함수를 정의하고 호출하는 코드를 올바른 순서로 배열하세요.",
           "items": [
+            "struct Rect { width: u32, height: u32 }",
             "impl Rect {",
-            "    fn square(size: u32) -> Self {",
-            "        Self { width: size, height: size }",
-            "    }",
-            "}"
+            "    fn square(size: u32) -> Self { Self { width: size, height: size } }",
+            "}",
+            "fn main() { let sq = Rect::square(5); }"
           ],
           "explain": "`Self`는 반환 타입과 본문 모두에서 `Rect`의 별칭으로 쓰이며, self를 받지 않으므로 연관 함수입니다."
         },
